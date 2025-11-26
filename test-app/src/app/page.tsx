@@ -216,6 +216,7 @@ function create_mock_hazo_connect(): HazoConnectInstance {
     const builder = {
       select: () => {
         if (table === 'hazo_chat') {
+          // Start with all non-deleted messages
           query_data = messages.filter(m => !m.deleted_at);
         }
         return builder;
@@ -267,11 +268,10 @@ function create_mock_hazo_connect(): HazoConnectInstance {
       },
       eq: (column: string, value: unknown) => {
         filters.push({ column, value, op: 'eq' });
-        if (table === 'hazo_chat') {
-          query_data = messages.filter(m => 
-            !m.deleted_at && (m as unknown as Record<string, unknown>)[column] === value
-          );
-        }
+        // Filter existing query_data instead of resetting
+        query_data = query_data.filter((item) => 
+          (item as unknown as Record<string, unknown>)[column] === value
+        );
         return builder;
       },
       neq: (column: string, value: unknown) => {
@@ -283,23 +283,47 @@ function create_mock_hazo_connect(): HazoConnectInstance {
       },
       gt: (column: string, value: unknown) => {
         filters.push({ column, value, op: 'gt' });
+        query_data = query_data.filter((item) => 
+          (item as unknown as Record<string, unknown>)[column]! > value!
+        );
         return builder;
       },
       gte: (column: string, value: unknown) => {
         filters.push({ column, value, op: 'gte' });
+        query_data = query_data.filter((item) => 
+          (item as unknown as Record<string, unknown>)[column]! >= value!
+        );
         return builder;
       },
       lt: (column: string, value: unknown) => {
         filters.push({ column, value, op: 'lt' });
+        query_data = query_data.filter((item) => 
+          (item as unknown as Record<string, unknown>)[column]! < value!
+        );
         return builder;
       },
       lte: (column: string, value: unknown) => {
         filters.push({ column, value, op: 'lte' });
+        query_data = query_data.filter((item) => 
+          (item as unknown as Record<string, unknown>)[column]! <= value!
+        );
         return builder;
       },
       or: (filter_string: string) => {
-        if (table === 'hazo_chat' && filter_string.includes('reference_id')) {
-          query_data = messages.filter(m => !m.deleted_at);
+        // Parse OR filter: "sender_user_id.eq.user-1,receiver_user_id.eq.user-1"
+        // For this mock, we just pass through since we want all messages for the reference
+        // The real filter would be complex, but for testing we allow all messages
+        // that match either sender or receiver for current user
+        if (filter_string.includes('sender_user_id') || filter_string.includes('receiver_user_id')) {
+          // Extract user ID from filter string
+          const match = filter_string.match(/\.eq\.([^,]+)/);
+          if (match) {
+            const user_id = match[1];
+            query_data = query_data.filter((item) => {
+              const msg = item as ChatMessageDB;
+              return msg.sender_user_id === user_id || msg.receiver_user_id === user_id;
+            });
+          }
         }
         return builder;
       },
