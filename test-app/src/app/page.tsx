@@ -129,12 +129,12 @@ const DEMO_REFERENCES: Array<{ id: string; name: string; type: 'link' | 'documen
 function get_ref_icon(type: 'link' | 'document' | 'field') {
   switch (type) {
     case 'document':
-      return <IoDocumentAttachSharp className="absolute bottom-0.5 right-1 h-2 w-2 opacity-40" />;
+      return <IoDocumentAttachSharp className="h-3 w-3 opacity-50 ml-1" />;
     case 'field':
-      return <LuTextCursorInput className="absolute bottom-0.5 right-1 h-2 w-2 opacity-40" />;
+      return <LuTextCursorInput className="h-3 w-3 opacity-50 ml-1" />;
     case 'link':
     default:
-      return <IoLinkSharp className="absolute bottom-0.5 right-1 h-2 w-2 opacity-40" />;
+      return <IoLinkSharp className="h-3 w-3 opacity-50 ml-1" />;
   }
 }
 
@@ -174,7 +174,7 @@ function DemoChat({ on_close }: { on_close?: () => void }) {
               variant={selected_ref === ref.id ? 'default' : 'outline'}
               size="sm"
               onClick={() => set_selected_ref(selected_ref === ref.id ? null : ref.id)}
-              className="h-7 px-2.5 text-xs font-medium rounded-full relative pr-4"
+              className="h-7 px-2.5 text-xs font-medium rounded-full flex items-center"
             >
               {ref.name}
               {get_ref_icon(ref.type)}
