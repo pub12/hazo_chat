@@ -33,6 +33,7 @@ import {
   IoChevronForward,
   IoLinkSharp
 } from 'react-icons/io5';
+import { LuTextCursorInput } from 'react-icons/lu';
 
 // ============================================================================
 // Demo Chat Component with Hardcoded Messages
@@ -117,12 +118,25 @@ const DEMO_MESSAGES: DemoMessage[] = [
   }
 ];
 
-const DEMO_REFERENCES = [
-  { id: '1', name: 'Project_Requirements.pdf' },
-  { id: '2', name: 'Design_Mockups.png' },
-  { id: '3', name: 'Contract.pdf' },
-  { id: '4', name: 'Budget.xlsx' }
+const DEMO_REFERENCES: Array<{ id: string; name: string; type: 'link' | 'document' | 'field' }> = [
+  { id: '1', name: 'Project_Requirements.pdf', type: 'link' },
+  { id: '2', name: 'Design_Mockups.png', type: 'document' },
+  { id: '3', name: 'Contract.pdf', type: 'field' },
+  { id: '4', name: 'Budget.xlsx', type: 'link' }
 ];
+
+// Helper to get icon for reference type
+function get_ref_icon(type: 'link' | 'document' | 'field') {
+  switch (type) {
+    case 'document':
+      return <IoDocumentAttachSharp className="absolute bottom-0.5 right-1 h-2.5 w-2.5 opacity-50" />;
+    case 'field':
+      return <LuTextCursorInput className="absolute bottom-0.5 right-1 h-2.5 w-2.5 opacity-50" />;
+    case 'link':
+    default:
+      return <IoLinkSharp className="absolute bottom-0.5 right-1 h-2.5 w-2.5 opacity-50" />;
+  }
+}
 
 function DemoChat({ on_close }: { on_close?: () => void }) {
   const [selected_ref, set_selected_ref] = useState<string | null>(null);
@@ -163,7 +177,7 @@ function DemoChat({ on_close }: { on_close?: () => void }) {
               className="h-7 px-2.5 text-xs font-medium rounded-full relative pr-5"
             >
               {ref.name}
-              <IoLinkSharp className="absolute bottom-0.5 right-1 h-2.5 w-2.5 opacity-50" />
+              {get_ref_icon(ref.type)}
             </Button>
           ))}
         </div>
