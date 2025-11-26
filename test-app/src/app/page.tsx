@@ -121,6 +121,58 @@ const MOCK_MESSAGES: ChatMessageDB[] = [
     deleted_at: null,
     created_at: '2024-01-15T14:30:00Z',
     changed_at: '2024-01-15T14:30:00Z'
+  },
+  {
+    id: 'msg-4',
+    reference_id: 'ref-main',
+    reference_type: 'project',
+    sender_user_id: 'user-1',
+    receiver_user_id: 'user-2',
+    message_text: 'The mockups look fantastic! I love the color scheme. Quick question - can we make the header slightly taller?',
+    reference_list: null,
+    read_at: '2024-01-15T15:00:00Z',
+    deleted_at: null,
+    created_at: '2024-01-15T14:50:00Z',
+    changed_at: '2024-01-15T14:50:00Z'
+  },
+  {
+    id: 'msg-5',
+    reference_id: 'ref-main',
+    reference_type: 'project',
+    sender_user_id: 'user-2',
+    receiver_user_id: 'user-1',
+    message_text: 'Absolutely! I\'ll ask the design team to adjust that. Should be ready by tomorrow morning.',
+    reference_list: null,
+    read_at: '2024-01-15T15:30:00Z',
+    deleted_at: null,
+    created_at: '2024-01-15T15:15:00Z',
+    changed_at: '2024-01-15T15:15:00Z'
+  },
+  {
+    id: 'msg-6',
+    reference_id: 'ref-main',
+    reference_type: 'project',
+    sender_user_id: 'user-1',
+    receiver_user_id: 'user-2',
+    message_text: 'Perfect! Also, I\'ve reviewed the budget breakdown. Everything looks within scope. 👍',
+    reference_list: null,
+    read_at: null,
+    deleted_at: null,
+    created_at: '2024-01-15T16:00:00Z',
+    changed_at: '2024-01-15T16:00:00Z'
+  },
+  {
+    id: 'msg-7',
+    reference_id: 'ref-main',
+    reference_type: 'project',
+    sender_user_id: 'user-2',
+    receiver_user_id: 'user-1',
+    message_text: 'That\'s great news! I\'ll schedule a kick-off meeting for next week. Does Tuesday at 2pm work for you?',
+    reference_list: null,
+    read_at: null,
+    deleted_at: null,
+    created_at: '2024-01-15T16:30:00Z',
+    changed_at: '2024-01-15T16:30:00Z'
   }
 ];
 

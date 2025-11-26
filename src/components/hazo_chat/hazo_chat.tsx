@@ -246,19 +246,15 @@ function HazoChatInner({
       {/* Row 2: Reference area (full width) */}
       <div className="cls_references_row border-b bg-muted/30">
         <div className="cls_references_container px-3 py-2">
-          <div className="flex items-center gap-2">
-            <h3 className="text-xs font-medium text-muted-foreground shrink-0">
-              References
-            </h3>
-            <div className="flex-1 overflow-hidden">
-              <HazoChatReferenceList
-                references={references}
-                selected_reference_id={selected_reference?.id}
-                on_select={handle_reference_select}
-                className="flex-wrap"
-              />
-            </div>
-          </div>
+          <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+            References
+          </h3>
+          <HazoChatReferenceList
+            references={references}
+            selected_reference_id={selected_reference?.id}
+            on_select={handle_reference_select}
+            className="flex-wrap"
+          />
         </div>
       </div>
 
