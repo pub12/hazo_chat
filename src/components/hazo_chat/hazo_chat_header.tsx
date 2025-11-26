@@ -39,7 +39,10 @@ export function HazoChatHeader({
       className={cn(
         'cls_hazo_chat_header',
         'flex items-center justify-between',
-        'px-4 py-3 border-b bg-background/95 backdrop-blur-sm',
+        'h-14 px-4',
+        'border-b border-border/40',
+        'bg-card/80 backdrop-blur-md',
+        'shadow-sm',
         className
       )}
     >
@@ -53,28 +56,33 @@ export function HazoChatHeader({
                 variant="ghost"
                 size="icon"
                 onClick={on_toggle_sidebar}
-                className="cls_sidebar_toggle md:hidden"
+                className={cn(
+                  'cls_sidebar_toggle md:hidden',
+                  'h-8 w-8 rounded-md',
+                  'hover:bg-accent hover:text-accent-foreground',
+                  'transition-colors'
+                )}
                 aria-label={is_sidebar_open ? 'Close sidebar' : 'Open sidebar'}
                 aria-expanded={is_sidebar_open}
               >
-                <IoMenuOutline className="w-5 h-5" />
+                <IoMenuOutline className="h-5 w-5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>
+            <TooltipContent side="bottom" className="text-xs">
               {is_sidebar_open ? 'Close sidebar' : 'Open sidebar'}
             </TooltipContent>
           </Tooltip>
         )}
 
         {/* Title and subtitle */}
-        <div className="cls_header_titles flex flex-col">
+        <div className="cls_header_titles flex flex-col gap-0.5">
           {title && (
-            <h2 className="cls_header_title text-base font-semibold text-foreground leading-tight">
+            <h2 className="cls_header_title text-sm font-semibold tracking-tight text-foreground">
               {title}
             </h2>
           )}
           {subtitle && (
-            <p className="cls_header_subtitle text-xs text-muted-foreground leading-tight">
+            <p className="cls_header_subtitle text-xs font-medium text-muted-foreground">
               {subtitle}
             </p>
           )}
@@ -89,13 +97,21 @@ export function HazoChatHeader({
               variant="ghost"
               size="icon"
               onClick={on_close}
-              className="cls_header_close text-muted-foreground hover:text-foreground"
+              className={cn(
+                'cls_header_close',
+                'h-8 w-8 rounded-md',
+                'text-muted-foreground',
+                'hover:bg-destructive/10 hover:text-destructive',
+                'transition-colors'
+              )}
               aria-label="Close chat"
             >
-              <IoClose className="w-5 h-5" />
+              <IoClose className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Close chat</TooltipContent>
+          <TooltipContent side="bottom" className="text-xs">
+            Close chat
+          </TooltipContent>
         </Tooltip>
       )}
     </header>
