@@ -30,7 +30,8 @@ import {
   IoCheckmarkOutline,
   IoCheckmarkDoneSharp,
   IoChevronBack,
-  IoChevronForward
+  IoChevronForward,
+  IoLinkSharp
 } from 'react-icons/io5';
 
 // ============================================================================
@@ -159,9 +160,10 @@ function DemoChat({ on_close }: { on_close?: () => void }) {
               variant={selected_ref === ref.id ? 'default' : 'outline'}
               size="sm"
               onClick={() => set_selected_ref(selected_ref === ref.id ? null : ref.id)}
-              className="h-7 px-2.5 text-xs font-medium rounded-full"
+              className="h-7 px-2.5 text-xs font-medium rounded-full relative pr-5"
             >
               {ref.name}
+              <IoLinkSharp className="absolute bottom-0.5 right-1 h-2.5 w-2.5 opacity-50" />
             </Button>
           ))}
         </div>
@@ -355,7 +357,7 @@ export default function HazoChatTestPage() {
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-4xl h-[80vh] p-0 gap-0">
-                  <DemoChat on_close={() => set_is_dialog_open(false)} />
+                  <DemoChat />
                 </DialogContent>
               </Dialog>
             </div>
