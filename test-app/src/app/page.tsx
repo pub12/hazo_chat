@@ -28,7 +28,9 @@ import {
   IoAttach,
   IoImageOutline,
   IoCheckmarkOutline,
-  IoCheckmarkDoneSharp
+  IoCheckmarkDoneSharp,
+  IoChevronBack,
+  IoChevronForward
 } from 'react-icons/io5';
 
 // ============================================================================
@@ -123,6 +125,7 @@ const DEMO_REFERENCES = [
 
 function DemoChat({ on_close }: { on_close?: () => void }) {
   const [selected_ref, set_selected_ref] = useState<string | null>(null);
+  const [is_preview_expanded, set_is_preview_expanded] = useState(true);
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -165,12 +168,43 @@ function DemoChat({ on_close }: { on_close?: () => void }) {
       </div>
 
       {/* Row 3: Main content */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Document preview */}
-        <div className="w-[280px] md:w-[320px] border-r bg-muted/20 flex-shrink-0 flex flex-col items-center justify-center text-muted-foreground">
-          <IoDocumentAttachSharp className="h-12 w-12 mb-2 opacity-30" />
-          <p className="text-sm">Select a document to preview</p>
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* Document preview - collapsible */}
+        <div 
+          className={`
+            border-r bg-muted/20 flex-shrink-0 flex flex-col items-center justify-center text-muted-foreground
+            transition-all duration-300 ease-in-out
+            ${is_preview_expanded ? 'w-[280px] md:w-[320px]' : 'w-0 border-r-0'}
+          `}
+        >
+          {is_preview_expanded && (
+            <>
+              <IoDocumentAttachSharp className="h-12 w-12 mb-2 opacity-30" />
+              <p className="text-sm">Select a document to preview</p>
+            </>
+          )}
         </div>
+
+        {/* Toggle button */}
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => set_is_preview_expanded(!is_preview_expanded)}
+          className={`
+            absolute top-1/2 -translate-y-1/2 z-10
+            h-8 w-6 rounded-r-md rounded-l-none
+            border-l-0 bg-background hover:bg-accent
+            transition-all duration-300
+            ${is_preview_expanded ? 'left-[280px] md:left-[320px]' : 'left-0'}
+          `}
+          aria-label={is_preview_expanded ? 'Collapse preview' : 'Expand preview'}
+        >
+          {is_preview_expanded ? (
+            <IoChevronBack className="h-4 w-4" />
+          ) : (
+            <IoChevronForward className="h-4 w-4" />
+          )}
+        </Button>
 
         {/* Chat messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
