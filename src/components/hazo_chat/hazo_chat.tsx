@@ -252,11 +252,15 @@ function HazoChatInner({
           on_close={() => set_sidebar_open(false)}
           className="md:w-[280px] md:flex-shrink-0"
         >
-          {/* Reference list */}
-          <div className="cls_sidebar_references border-b p-2">
-            <h3 className="text-xs font-medium text-muted-foreground px-2 mb-2">
+          {/* References header */}
+          <div className="cls_sidebar_header px-3 py-2 border-b bg-muted/30">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               References
             </h3>
+          </div>
+
+          {/* Reference icons list */}
+          <div className="cls_sidebar_references border-b p-2">
             <HazoChatReferenceList
               references={references}
               selected_reference_id={selected_reference?.id}
