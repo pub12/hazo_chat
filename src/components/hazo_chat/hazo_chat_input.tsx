@@ -206,10 +206,10 @@ export function HazoChatInput({
               size="icon"
               onClick={handle_attach_click}
               disabled={is_disabled}
-              className="cls_attach_btn text-muted-foreground hover:text-foreground"
+              className="cls_attach_btn h-12 w-12 text-muted-foreground hover:text-foreground"
               aria-label="Attach file"
             >
-              <IoAttach className="w-5 h-5" />
+              <IoAttach className="w-8 h-8" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Attach file</TooltipContent>
@@ -223,10 +223,10 @@ export function HazoChatInput({
               size="icon"
               onClick={handle_image_click}
               disabled={is_disabled}
-              className="cls_image_btn text-muted-foreground hover:text-foreground"
+              className="cls_image_btn h-12 w-12 text-muted-foreground hover:text-foreground"
               aria-label="Attach image"
             >
-              <IoImageOutline className="w-5 h-5" />
+              <IoImageOutline className="w-8 h-8" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Attach image</TooltipContent>

@@ -132,6 +132,7 @@ export function HazoChatMessages({
         className={cn(
           'cls_messages_empty',
           'flex items-center justify-center h-full',
+          'px-6 py-8',
           'text-muted-foreground text-sm',
           className
         )}
