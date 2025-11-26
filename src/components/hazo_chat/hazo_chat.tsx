@@ -28,7 +28,6 @@ import {
 // Sub-components
 import { HazoChatProvider, useHazoChatContext } from './hazo_chat_context.js';
 import { HazoChatHeader } from './hazo_chat_header.js';
-import { HazoChatSidebar } from './hazo_chat_sidebar.js';
 import { HazoChatReferenceList } from './hazo_chat_reference_list.js';
 import { HazoChatDocumentViewer } from './hazo_chat_document_viewer.js';
 import { HazoChatMessages } from './hazo_chat_messages.js';
@@ -235,7 +234,7 @@ function HazoChatInner({
         className
       )}
     >
-      {/* Header */}
+      {/* Row 1: Header (title area) */}
       <HazoChatHeader
         title={title}
         subtitle={subtitle}
@@ -244,39 +243,44 @@ function HazoChatInner({
         is_sidebar_open={is_sidebar_open}
       />
 
-      {/* Main content area */}
-      <div className="cls_chat_main flex flex-1 overflow-hidden relative">
-        {/* Sidebar (references + viewer) */}
-        <HazoChatSidebar
-          is_open={is_sidebar_open}
-          on_close={() => set_sidebar_open(false)}
-          className="md:w-[280px] md:flex-shrink-0"
-        >
-          {/* References header */}
-          <div className="cls_sidebar_header px-3 py-2 border-b bg-muted/30">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+      {/* Row 2: Reference area (full width) */}
+      <div className="cls_references_row border-b bg-muted/30">
+        <div className="cls_references_container px-3 py-2">
+          <div className="flex items-center gap-2">
+            <h3 className="text-xs font-medium text-muted-foreground shrink-0">
               References
             </h3>
+            <div className="flex-1 overflow-hidden">
+              <HazoChatReferenceList
+                references={references}
+                selected_reference_id={selected_reference?.id}
+                on_select={handle_reference_select}
+                className="flex-wrap"
+              />
+            </div>
           </div>
+        </div>
+      </div>
 
-          {/* Reference icons list */}
-          <div className="cls_sidebar_references border-b p-2">
-            <HazoChatReferenceList
-              references={references}
-              selected_reference_id={selected_reference?.id}
-              on_select={handle_reference_select}
-            />
-          </div>
+      {/* Row 3: Two columns (doc preview | chat history) */}
+      <div className="cls_main_content flex flex-1 overflow-hidden relative">
+        {/* Column 1: Document preview */}
+        <div
+          className={cn(
+            'cls_doc_preview_column',
+            'border-r bg-muted/20',
+            'w-[280px] md:w-[320px] lg:w-[380px]',
+            'flex-shrink-0',
+            'flex flex-col',
+            // Mobile: hidden by default, shown when sidebar is open
+            is_sidebar_open ? 'flex' : 'hidden md:flex'
+          )}
+        >
+          <HazoChatDocumentViewer reference={selected_reference || undefined} />
+        </div>
 
-          {/* Document viewer */}
-          <div className="cls_sidebar_viewer flex-1 min-h-0">
-            <HazoChatDocumentViewer reference={selected_reference || undefined} />
-          </div>
-        </HazoChatSidebar>
-
-        {/* Chat area */}
-        <div className="cls_chat_area flex flex-col flex-1 min-w-0">
-          {/* Messages */}
+        {/* Column 2: Chat history */}
+        <div className="cls_chat_column flex flex-col flex-1 min-w-0">
           <HazoChatMessages
             messages={messages}
             current_user_id={current_user?.id || ''}
@@ -287,16 +291,18 @@ function HazoChatInner({
             on_delete_message={delete_message}
             highlighted_message_id={highlighted_message_id || undefined}
           />
-
-          {/* Input */}
-          <HazoChatInput
-            on_send={handle_send}
-            pending_attachments={pending_attachments}
-            on_add_attachment={handle_add_attachment}
-            on_remove_attachment={handle_remove_attachment}
-            is_disabled={!current_user || is_uploading}
-          />
         </div>
+      </div>
+
+      {/* Row 4: Chat input (full width) */}
+      <div className="cls_input_row border-t bg-background">
+        <HazoChatInput
+          on_send={handle_send}
+          pending_attachments={pending_attachments}
+          on_add_attachment={handle_add_attachment}
+          on_remove_attachment={handle_remove_attachment}
+          is_disabled={!current_user || is_uploading}
+        />
       </div>
 
       {/* Connection status indicator */}
@@ -305,7 +311,7 @@ function HazoChatInner({
           className={cn(
             'cls_connection_status',
             'absolute bottom-20 left-1/2 -translate-x-1/2',
-            'px-3 py-1.5 rounded-full text-xs font-medium',
+            'px-3 py-1.5 rounded-full text-xs font-medium z-10',
             polling_status === 'reconnecting'
               ? 'bg-yellow-100 text-yellow-800'
               : 'bg-red-100 text-red-800'

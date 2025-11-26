@@ -151,8 +151,8 @@ export function HazoChatReferenceList({
       <div
         className={cn(
           'cls_reference_list_empty',
-          'flex items-center justify-center p-4',
-          'text-sm text-muted-foreground',
+          'flex items-center justify-center py-2 px-3',
+          'text-xs text-muted-foreground italic',
           className
         )}
       >
@@ -165,7 +165,7 @@ export function HazoChatReferenceList({
     <div
       className={cn(
         'cls_hazo_chat_reference_list',
-        'flex flex-wrap gap-1 p-2',
+        'flex flex-wrap items-center gap-1',
         className
       )}
       role="listbox"
