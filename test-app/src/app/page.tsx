@@ -1,7 +1,12 @@
 /**
- * Home Page - Test App
+ * HazoChat Test Page
  * 
- * Demonstrates the HazoChat component with mock services.
+ * Demonstrates the hazo_chat component in various containers:
+ * - Embedded in a div
+ * - In a shadcn Sheet
+ * - In a shadcn Dialog
+ * 
+ * Includes mock data for messages, references, and user profiles.
  */
 
 'use client';
@@ -10,307 +15,500 @@ import { useState, useCallback } from 'react';
 import { HazoChat } from 'hazo_chat';
 import type {
   HazoConnectInstance,
-  HazoConnectQueryBuilder,
-  HazoConnectResponse,
   HazoAuthInstance,
-  HazoUserProfile,
   ChatMessageDB,
+  ChatReferenceItem,
+  HazoUserProfile,
   ReferenceItem
 } from 'hazo_chat';
 import { Button } from '@/components/ui/button';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { 
+  IoDocumentAttachSharp, 
+  IoChatbubbleEllipses,
+  IoExpand,
+  IoLayers
+} from 'react-icons/io5';
 
 // ============================================================================
 // Mock Data
 // ============================================================================
 
-const MOCK_CURRENT_USER: HazoUserProfile = {
-  id: 'user-1',
-  name: 'John Doe',
-  email: 'john@example.com',
-  avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=John'
+// Mock user profiles
+const MOCK_USERS: Record<string, HazoUserProfile> = {
+  'user-1': {
+    id: 'user-1',
+    name: 'John Doe',
+    email: 'john@example.com',
+    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=John'
+  },
+  'user-2': {
+    id: 'user-2',
+    name: 'Sarah Chen',
+    email: 'sarah@example.com',
+    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah'
+  }
 };
 
-const MOCK_OTHER_USER: HazoUserProfile = {
-  id: 'user-2',
-  name: 'Sarah Chen',
-  email: 'sarah@example.com',
-  avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah'
-};
-
+// Mock messages
 const MOCK_MESSAGES: ChatMessageDB[] = [
   {
     id: 'msg-1',
-    reference_id: 'ref-123',
-    reference_type: 'chat',
+    reference_id: 'ref-main',
+    reference_type: 'project',
     sender_user_id: 'user-2',
     receiver_user_id: 'user-1',
-    message_text: 'Hey! Welcome to the hazo_chat demo. This component supports file attachments, document viewing, and real-time messaging.',
-    reference_list: null,
-    read_at: new Date(Date.now() - 3500000).toISOString(),
-    deleted_at: null,
-    created_at: new Date(Date.now() - 3600000).toISOString(),
-    changed_at: new Date(Date.now() - 3600000).toISOString()
-  },
-  {
-    id: 'msg-2',
-    reference_id: 'ref-123',
-    reference_type: 'chat',
-    sender_user_id: 'user-1',
-    receiver_user_id: 'user-2',
-    message_text: 'Thanks! The interface looks really clean. I especially like the document viewer on the side.',
-    reference_list: null,
-    read_at: new Date(Date.now() - 3400000).toISOString(),
-    deleted_at: null,
-    created_at: new Date(Date.now() - 3500000).toISOString(),
-    changed_at: new Date(Date.now() - 3500000).toISOString()
-  },
-  {
-    id: 'msg-3',
-    reference_id: 'ref-123',
-    reference_type: 'chat',
-    sender_user_id: 'user-2',
-    receiver_user_id: 'user-1',
-    message_text: 'Here is a sample document I wanted to share with you.',
+    message_text: 'Hi John! I\'ve uploaded the project requirements document for your review.',
     reference_list: [
       {
         id: 'doc-1',
         type: 'document',
         scope: 'chat',
-        name: 'Sample Report.pdf',
-        url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+        name: 'Project_Requirements.pdf',
+        url: '/sample-docs/requirements.pdf',
         mime_type: 'application/pdf'
+      }
+    ],
+    read_at: '2024-01-15T10:30:00Z',
+    deleted_at: null,
+    created_at: '2024-01-15T10:00:00Z',
+    changed_at: '2024-01-15T10:00:00Z'
+  },
+  {
+    id: 'msg-2',
+    reference_id: 'ref-main',
+    reference_type: 'project',
+    sender_user_id: 'user-1',
+    receiver_user_id: 'user-2',
+    message_text: 'Thanks Sarah! I\'ll take a look at it this afternoon. The timeline looks good.',
+    reference_list: null,
+    read_at: '2024-01-15T11:00:00Z',
+    deleted_at: null,
+    created_at: '2024-01-15T10:45:00Z',
+    changed_at: '2024-01-15T10:45:00Z'
+  },
+  {
+    id: 'msg-3',
+    reference_id: 'ref-main',
+    reference_type: 'project',
+    sender_user_id: 'user-2',
+    receiver_user_id: 'user-1',
+    message_text: 'Great! Also, here\'s the design mockups from the team.',
+    reference_list: [
+      {
+        id: 'doc-2',
+        type: 'document',
+        scope: 'chat',
+        name: 'Design_Mockups.png',
+        url: 'https://picsum.photos/800/600',
+        mime_type: 'image/png'
       }
     ],
     read_at: null,
     deleted_at: null,
-    created_at: new Date(Date.now() - 3400000).toISOString(),
-    changed_at: new Date(Date.now() - 3400000).toISOString()
+    created_at: '2024-01-15T14:30:00Z',
+    changed_at: '2024-01-15T14:30:00Z'
   }
 ];
 
-const MOCK_REFERENCES: ReferenceItem[] = [
+// Mock additional references (field references)
+const MOCK_ADDITIONAL_REFERENCES: ReferenceItem[] = [
   {
-    id: 'ref-field-1',
+    id: 'field-1',
     type: 'field',
     scope: 'field',
-    name: 'Project Name',
-    url: '#field-project-name'
+    name: 'Project Budget',
+    url: '#field-budget'
   },
   {
-    id: 'ref-url-1',
+    id: 'field-2',
     type: 'url',
     scope: 'field',
-    name: 'Documentation',
-    url: 'https://github.com/pub12/hazo_chat'
+    name: 'Figma Design',
+    url: 'https://figma.com/file/example'
+  },
+  {
+    id: 'doc-ext-1',
+    type: 'document',
+    scope: 'field',
+    name: 'Contract.pdf',
+    url: '/sample-docs/contract.pdf',
+    mime_type: 'application/pdf'
   }
 ];
 
 // ============================================================================
-// Mock Services
+// Mock hazo_connect Implementation
 // ============================================================================
 
-/**
- * Create mock hazo_connect instance
- */
-function create_mock_hazo_connect(messages: ChatMessageDB[]): HazoConnectInstance {
+function create_mock_hazo_connect(): HazoConnectInstance {
+  const messages = [...MOCK_MESSAGES];
+
+  function create_query_builder(table: string) {
+    let query_data: unknown[] = [];
+    const filters: Array<{ column: string; value: unknown; op: string }> = [];
+
+    const builder = {
+      select: () => {
+        if (table === 'hazo_chat') {
+          query_data = messages.filter(m => !m.deleted_at);
+        }
+        return builder;
+      },
+      insert: (data: Record<string, unknown> | Record<string, unknown>[]) => {
+        if (table === 'hazo_chat') {
+          const new_msgs = Array.isArray(data) ? data : [data];
+          new_msgs.forEach((msg) => {
+            const new_msg: ChatMessageDB = {
+              id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              reference_id: msg.reference_id as string,
+              reference_type: msg.reference_type as string,
+              sender_user_id: msg.sender_user_id as string,
+              receiver_user_id: msg.receiver_user_id as string,
+              message_text: msg.message_text as string | null,
+              reference_list: msg.reference_list as ChatReferenceItem[] | null,
+              read_at: null,
+              deleted_at: null,
+              created_at: new Date().toISOString(),
+              changed_at: new Date().toISOString()
+            };
+            messages.push(new_msg);
+            query_data = [new_msg];
+          });
+        }
+        return builder;
+      },
+      update: (data: Record<string, unknown>) => {
+        const target_id = filters.find(f => f.column === 'id')?.value;
+        if (target_id && table === 'hazo_chat') {
+          const idx = messages.findIndex(m => m.id === target_id);
+          if (idx !== -1) {
+            messages[idx] = { ...messages[idx], ...data, changed_at: new Date().toISOString() } as ChatMessageDB;
+            query_data = [messages[idx]];
+          }
+        }
+        return builder;
+      },
+      delete: () => {
+        const target_id = filters.find(f => f.column === 'id')?.value;
+        if (target_id && table === 'hazo_chat') {
+          const idx = messages.findIndex(m => m.id === target_id);
+          if (idx !== -1) {
+            messages[idx].deleted_at = new Date().toISOString();
+            query_data = [messages[idx]];
+          }
+        }
+        return builder;
+      },
+      eq: (column: string, value: unknown) => {
+        filters.push({ column, value, op: 'eq' });
+        if (table === 'hazo_chat') {
+          query_data = messages.filter(m => 
+            !m.deleted_at && (m as unknown as Record<string, unknown>)[column] === value
+          );
+        }
+        return builder;
+      },
+      neq: (column: string, value: unknown) => {
+        filters.push({ column, value, op: 'neq' });
+        query_data = query_data.filter((item) => 
+          (item as unknown as Record<string, unknown>)[column] !== value
+        );
+        return builder;
+      },
+      gt: (column: string, value: unknown) => {
+        filters.push({ column, value, op: 'gt' });
+        return builder;
+      },
+      gte: (column: string, value: unknown) => {
+        filters.push({ column, value, op: 'gte' });
+        return builder;
+      },
+      lt: (column: string, value: unknown) => {
+        filters.push({ column, value, op: 'lt' });
+        return builder;
+      },
+      lte: (column: string, value: unknown) => {
+        filters.push({ column, value, op: 'lte' });
+        return builder;
+      },
+      or: (filter_string: string) => {
+        if (table === 'hazo_chat' && filter_string.includes('reference_id')) {
+          query_data = messages.filter(m => !m.deleted_at);
+        }
+        return builder;
+      },
+      order: (column: string, options?: { ascending?: boolean }) => {
+        const asc = options?.ascending ?? true;
+        query_data = [...query_data].sort((a, b) => {
+          const av = (a as unknown as Record<string, unknown>)[column];
+          const bv = (b as unknown as Record<string, unknown>)[column];
+          if (av === bv) return 0;
+          const cmp = av! > bv! ? 1 : -1;
+          return asc ? cmp : -cmp;
+        });
+        return builder;
+      },
+      range: (from: number, to: number) => {
+        query_data = query_data.slice(from, to + 1);
+        return builder;
+      },
+      single: async () => {
+        await new Promise(resolve => setTimeout(resolve, 50));
+        return { data: query_data[0] || null, error: null };
+      },
+      then: async function<T>(resolve: (response: { data: T | null; error: null; count?: number }) => void) {
+        await new Promise(r => setTimeout(r, 50));
+        resolve({ data: query_data as T, error: null, count: query_data.length });
+      }
+    };
+
+    return builder;
+  }
+
   return {
-    from: (table: string) => create_mock_query_builder(table, messages)
+    from: (table: string) => create_query_builder(table)
   };
 }
 
-/**
- * Create mock query builder
- */
-function create_mock_query_builder(table: string, messages: ChatMessageDB[]) {
-  let filtered_messages = [...messages];
-  let insert_data: Record<string, unknown> | null = null;
+// ============================================================================
+// Mock hazo_auth Implementation
+// ============================================================================
 
-  const builder: HazoConnectQueryBuilder = {
-    select: () => builder,
-    insert: (data: Record<string, unknown> | Record<string, unknown>[]) => {
-      insert_data = Array.isArray(data) ? data[0] : data;
-      return builder;
-    },
-    update: () => builder,
-    delete: () => builder,
-    eq: (column: string, value: unknown) => {
-      if (column === 'reference_id') {
-        filtered_messages = filtered_messages.filter(m => m.reference_id === value);
-      }
-      return builder;
-    },
-    neq: () => builder,
-    gt: (column: string, value: unknown) => {
-      if (column === 'created_at') {
-        filtered_messages = filtered_messages.filter(m => new Date(m.created_at) > new Date(value as string));
-      }
-      return builder;
-    },
-    gte: () => builder,
-    lt: () => builder,
-    lte: () => builder,
-    or: () => builder,
-    order: (column: string, options?: { ascending?: boolean }) => {
-      filtered_messages.sort((a, b) => {
-        const a_val = a[column as keyof ChatMessageDB] as string;
-        const b_val = b[column as keyof ChatMessageDB] as string;
-        return options?.ascending 
-          ? a_val.localeCompare(b_val)
-          : b_val.localeCompare(a_val);
-      });
-      return builder;
-    },
-    range: (from: number, to: number) => {
-      filtered_messages = filtered_messages.slice(from, to + 1);
-      return builder;
-    },
-    single: async () => {
-      if (insert_data) {
-        const new_message: ChatMessageDB = {
-          id: `msg-${Date.now()}`,
-          reference_id: insert_data.reference_id as string,
-          reference_type: insert_data.reference_type as string,
-          sender_user_id: insert_data.sender_user_id as string,
-          receiver_user_id: insert_data.receiver_user_id as string,
-          message_text: insert_data.message_text as string,
-          reference_list: insert_data.reference_list as ChatMessageDB['reference_list'],
-          read_at: null,
-          deleted_at: null,
-          created_at: new Date().toISOString(),
-          changed_at: new Date().toISOString()
-        };
-        messages.push(new_message);
-        return { data: new_message, error: null };
-      }
-      return { data: filtered_messages[0] || null, error: null };
-    },
-    then: async <T,>(resolve: (response: HazoConnectResponse<T>) => void) => {
-      resolve({ data: filtered_messages as T, error: null });
-    }
-  };
-
-  return builder;
-}
-
-/**
- * Create mock hazo_auth instance
- */
-function create_mock_hazo_auth(): HazoAuthInstance {
+function create_mock_hazo_auth(current_user_id: string): HazoAuthInstance {
   return {
-    hazo_get_auth: async () => ({ id: MOCK_CURRENT_USER.id, email: MOCK_CURRENT_USER.email }),
+    hazo_get_auth: async () => {
+      return { id: current_user_id, email: MOCK_USERS[current_user_id]?.email };
+    },
     hazo_get_user_profiles: async (user_ids: string[]) => {
-      const profiles: HazoUserProfile[] = [];
-      user_ids.forEach(id => {
-        if (id === MOCK_CURRENT_USER.id) profiles.push(MOCK_CURRENT_USER);
-        if (id === MOCK_OTHER_USER.id) profiles.push(MOCK_OTHER_USER);
-      });
-      return profiles;
+      return user_ids
+        .map(id => MOCK_USERS[id])
+        .filter(Boolean);
     }
   };
 }
 
 // ============================================================================
-// Component
+// Page Component
 // ============================================================================
 
-export default function HomePage() {
-  const [is_chat_open, set_is_chat_open] = useState(true);
-  const [messages] = useState(MOCK_MESSAGES);
+export default function HazoChatTestPage() {
+  const [is_sheet_open, set_is_sheet_open] = useState(false);
+  const [is_dialog_open, set_is_dialog_open] = useState(false);
+  const [current_view, set_current_view] = useState<'embedded' | 'sheet' | 'dialog'>('embedded');
 
-  const mock_hazo_connect = create_mock_hazo_connect(messages);
-  const mock_hazo_auth = create_mock_hazo_auth();
+  // Create mock instances
+  const mock_hazo_connect = create_mock_hazo_connect();
+  const mock_hazo_auth = create_mock_hazo_auth('user-1');
+
+  // Common props for HazoChat
+  const chat_props = {
+    hazo_connect: mock_hazo_connect,
+    hazo_auth: mock_hazo_auth,
+    receiver_user_id: 'user-2',
+    document_save_location: '/uploads/chat',
+    reference_id: 'ref-main',
+    reference_type: 'project',
+    additional_references: MOCK_ADDITIONAL_REFERENCES,
+    timezone: 'Australia/Sydney',
+    title: 'Chat with Sarah',
+    subtitle: 'Project Discussion'
+  };
 
   const handle_close = useCallback(() => {
-    set_is_chat_open(false);
-  }, []);
-
-  const handle_open = useCallback(() => {
-    set_is_chat_open(true);
+    set_is_sheet_open(false);
+    set_is_dialog_open(false);
+    set_current_view('embedded');
   }, []);
 
   return (
-    <main className="cls_home_page min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-      <div className="cls_content container mx-auto px-4 py-8 max-w-6xl">
-        {/* Header */}
-        <header className="cls_header mb-8 text-center">
-          <h1 className="text-4xl font-bold text-slate-900 dark:text-white mb-2">
-            hazo_chat
-          </h1>
-          <p className="text-slate-600 dark:text-slate-400">
-            A powerful chat component with document viewing and real-time messaging
-          </p>
-        </header>
+    <main className="cls_test_page min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 dark:from-slate-950 dark:via-slate-900 dark:to-slate-800">
+      {/* Header */}
+      <header className="cls_page_header border-b bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm sticky top-0 z-50">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                hazo_chat
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Chat component with document viewing and real-time messaging
+              </p>
+            </div>
+            
+            {/* View Toggle Buttons */}
+            <div className="cls_view_toggles flex items-center gap-2">
+              <Button
+                variant={current_view === 'embedded' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => set_current_view('embedded')}
+                className="gap-2"
+              >
+                <IoLayers className="h-4 w-4" />
+                Embedded
+              </Button>
+              
+              <Sheet open={is_sheet_open} onOpenChange={set_is_sheet_open}>
+                <SheetTrigger asChild>
+                  <Button
+                    variant={current_view === 'sheet' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => set_current_view('sheet')}
+                    className="gap-2"
+                  >
+                    <IoChatbubbleEllipses className="h-4 w-4" />
+                    Sheet
+                  </Button>
+                </SheetTrigger>
+                <SheetContent 
+                  side="right" 
+                  className="w-full sm:max-w-xl p-0"
+                >
+                  <div className="h-full">
+                    <HazoChat
+                      {...chat_props}
+                      on_close={() => set_is_sheet_open(false)}
+                    />
+                  </div>
+                </SheetContent>
+              </Sheet>
 
-        {/* Chat Toggle Button */}
-        {!is_chat_open && (
-          <div className="cls_chat_toggle fixed bottom-6 right-6">
-            <Button
-              onClick={handle_open}
-              size="lg"
-              className="rounded-full shadow-lg"
-            >
-              Open Chat
-            </Button>
+              <Dialog open={is_dialog_open} onOpenChange={set_is_dialog_open}>
+                <DialogTrigger asChild>
+                  <Button
+                    variant={current_view === 'dialog' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => set_current_view('dialog')}
+                    className="gap-2"
+                  >
+                    <IoExpand className="h-4 w-4" />
+                    Dialog
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-4xl h-[80vh] p-0 gap-0">
+                  <HazoChat
+                    {...chat_props}
+                    on_close={() => set_is_dialog_open(false)}
+                  />
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
-        )}
+        </div>
+      </header>
 
-        {/* Chat Component */}
-        {is_chat_open && (
-          <div className="cls_chat_container h-[700px] bg-white dark:bg-slate-800 rounded-2xl shadow-xl overflow-hidden">
-            <HazoChat
-              hazo_connect={mock_hazo_connect}
-              hazo_auth={mock_hazo_auth}
-              receiver_user_id={MOCK_OTHER_USER.id}
-              document_save_location="/uploads"
-              reference_id="ref-123"
-              reference_type="chat"
-              additional_references={MOCK_REFERENCES}
-              timezone="Australia/Sydney"
-              title="Chat with Sarah"
-              subtitle="Project Discussion"
-              on_close={handle_close}
-            />
+      {/* Main Content */}
+      <div className="container mx-auto px-4 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Chat Container - Embedded View */}
+          <div className="lg:col-span-2">
+            <div className="cls_chat_container bg-white dark:bg-slate-900 rounded-xl shadow-lg border overflow-hidden h-[700px]">
+              <HazoChat
+                {...chat_props}
+                on_close={handle_close}
+              />
+            </div>
           </div>
-        )}
 
-        {/* Features Grid */}
-        <section className="cls_features mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <FeatureCard
-            title="Document Viewer"
-            description="View PDFs, images, and text files directly in the sidebar. Supports drag-and-drop uploads."
-          />
-          <FeatureCard
-            title="Real-time Messaging"
-            description="Polling-based message updates with configurable intervals. Optimistic UI for instant feedback."
-          />
-          <FeatureCard
-            title="Responsive Design"
-            description="Collapsible sidebar on mobile. Grid layout on desktop. Works in sheets and dialogs."
-          />
-        </section>
+          {/* Features Panel */}
+          <div className="cls_features_panel space-y-4">
+            {/* Reference Types Card */}
+            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md border p-4">
+              <h3 className="font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                <IoDocumentAttachSharp className="h-4 w-4 text-primary" />
+                Reference Types
+              </h3>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-blue-500" />
+                  <code className="text-xs bg-muted px-1 rounded">document</code>
+                  - PDF, images, files
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-green-500" />
+                  <code className="text-xs bg-muted px-1 rounded">field</code>
+                  - Form field references
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-purple-500" />
+                  <code className="text-xs bg-muted px-1 rounded">url</code>
+                  - External links
+                </li>
+              </ul>
+            </div>
+
+            {/* Scope Indicators Card */}
+            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md border p-4">
+              <h3 className="font-semibold text-slate-900 dark:text-white mb-3">
+                Scope Indicators
+              </h3>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li className="flex items-center gap-2">
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                    chat
+                  </span>
+                  - Document attached in chat
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                    field
+                  </span>
+                  - Field/form reference
+                </li>
+              </ul>
+            </div>
+
+            {/* Message Status Card */}
+            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md border p-4">
+              <h3 className="font-semibold text-slate-900 dark:text-white mb-3">
+                Message Status
+              </h3>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li className="flex items-center gap-2">
+                  <span className="text-gray-400">✓</span>
+                  Sent (grey single check)
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-green-500">✓✓</span>
+                  Read (green double check)
+                </li>
+              </ul>
+            </div>
+
+            {/* Features List Card */}
+            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md border p-4">
+              <h3 className="font-semibold text-slate-900 dark:text-white mb-3">
+                Features
+              </h3>
+              <ul className="space-y-1.5 text-sm text-muted-foreground">
+                <li>✓ Grid layout with sidebar</li>
+                <li>✓ Document viewer (PDF, images)</li>
+                <li>✓ Reference list with icons</li>
+                <li>✓ Chat bubbles with avatars</li>
+                <li>✓ Timestamps with timezone</li>
+                <li>✓ Read receipts</li>
+                <li>✓ File drag-and-drop</li>
+                <li>✓ Responsive design</li>
+                <li>✓ Sheet/Dialog modes</li>
+              </ul>
+            </div>
+          </div>
+        </div>
       </div>
     </main>
   );
 }
 
-// ============================================================================
-// Feature Card Component
-// ============================================================================
-
-interface FeatureCardProps {
-  title: string;
-  description: string;
-}
-
-function FeatureCard({ title, description }: FeatureCardProps) {
-  return (
-    <div className="cls_feature_card p-6 bg-white dark:bg-slate-800 rounded-xl shadow-md border border-slate-200 dark:border-slate-700">
-      <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-        {title}
-      </h3>
-      <p className="text-slate-600 dark:text-slate-400 text-sm">
-        {description}
-      </p>
-    </div>
-  );
-}
