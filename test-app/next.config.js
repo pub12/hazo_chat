@@ -12,11 +12,6 @@ const nextConfig = {
   // Transpile the workspace packages for proper ES module handling
   transpilePackages: ['hazo_chat', 'hazo_connect', 'hazo_auth'],
 
-  // CRITICAL: Exclude sql.js from server component bundling
-  serverExternalPackages: [
-    "sql.js",
-    "better-sqlite3",
-  ],
 
   // Custom webpack configuration for workspace resolution
   webpack: (config, { isServer }) => {
@@ -62,6 +57,11 @@ const nextConfig = {
   experimental: {
     // Enable external directory support for workspace packages
     externalDir: true,
+    // Exclude sql.js from server component bundling
+    serverComponentsExternalPackages: [
+      "sql.js",
+      "better-sqlite3",
+    ],
   },
 };
 
