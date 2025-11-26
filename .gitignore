@@ -50,3 +50,11 @@ coverage/
 *.temp
 .cache/
 
+# Next.js
+.next/
+out/
+
+# Test app specific
+test-app/.next/
+test-app/node_modules/
+
