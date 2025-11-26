@@ -80,6 +80,29 @@ CREATE INDEX IF NOT EXISTS idx_hazo_user_roles_user_id ON hazo_user_roles(user_i
 CREATE INDEX IF NOT EXISTS idx_hazo_user_roles_role_id ON hazo_user_roles(role_id);
 
 -- ============================================
+-- hazo_chat Table (Chat Messages)
+-- ============================================
+
+-- 7. Create chat messages table
+CREATE TABLE IF NOT EXISTS hazo_chat (
+    id TEXT PRIMARY KEY,
+    reference_id TEXT NOT NULL,
+    reference_type TEXT NOT NULL,
+    sender_user_id TEXT NOT NULL REFERENCES hazo_users(id),
+    receiver_user_id TEXT NOT NULL REFERENCES hazo_users(id),
+    message_text TEXT,
+    reference_list TEXT,
+    read_at TEXT,
+    deleted_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    changed_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_reference_id ON hazo_chat(reference_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_sender ON hazo_chat(sender_user_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_receiver ON hazo_chat(receiver_user_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_created_at ON hazo_chat(created_at);
+
+-- ============================================
 -- Optional: Insert default test data
 -- ============================================
 
