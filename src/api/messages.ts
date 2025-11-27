@@ -38,8 +38,8 @@ function generateUUID(): string {
 /**
  * Default function to get user ID from request cookies
  */
-function defaultGetUserIdFromRequest(): string | null {
-  const cookieStore = cookies();
+async function defaultGetUserIdFromRequest(): Promise<string | null> {
+  const cookieStore = await cookies();
   return cookieStore.get('hazo_auth_user_id')?.value || null;
 }
 
@@ -65,7 +65,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
       // Get current user ID
       const current_user_id = getUserIdFromRequest
         ? await getUserIdFromRequest(request)
-        : defaultGetUserIdFromRequest();
+        : await defaultGetUserIdFromRequest();
 
       if (!current_user_id) {
         console.error('[hazo_chat/messages GET] No user ID - not authenticated');
@@ -160,7 +160,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
       // Get current user ID (sender)
       const sender_user_id = getUserIdFromRequest
         ? await getUserIdFromRequest(request)
-        : defaultGetUserIdFromRequest();
+        : await defaultGetUserIdFromRequest();
 
       if (!sender_user_id) {
         console.error('[hazo_chat/messages POST] No user ID - not authenticated');
