@@ -12,51 +12,17 @@ import type { ReactNode } from 'react';
 // ============================================================================
 
 /**
- * Interface for hazo_connect database instance
- * Provides methods for database operations via Supabase/PostgREST
+ * Re-export HazoConnectAdapter from hazo_connect for convenience
+ * Consumers should use getHazoConnectSingleton() or createHazoConnectFromEnv() 
+ * from hazo_connect/nextjs/setup to create an adapter instance
  */
-export interface HazoConnectInstance {
-  from: (table: string) => HazoConnectQueryBuilder;
-}
+export type { HazoConnectAdapter } from 'hazo_connect';
 
 /**
- * Query builder interface for hazo_connect
+ * Legacy alias for backward compatibility
+ * @deprecated Use HazoConnectAdapter instead
  */
-export interface HazoConnectQueryBuilder {
-  select: (columns?: string) => HazoConnectQueryBuilder;
-  insert: (data: Record<string, unknown> | Record<string, unknown>[]) => HazoConnectQueryBuilder;
-  update: (data: Record<string, unknown>) => HazoConnectQueryBuilder;
-  delete: () => HazoConnectQueryBuilder;
-  eq: (column: string, value: unknown) => HazoConnectQueryBuilder;
-  neq: (column: string, value: unknown) => HazoConnectQueryBuilder;
-  gt: (column: string, value: unknown) => HazoConnectQueryBuilder;
-  gte: (column: string, value: unknown) => HazoConnectQueryBuilder;
-  lt: (column: string, value: unknown) => HazoConnectQueryBuilder;
-  lte: (column: string, value: unknown) => HazoConnectQueryBuilder;
-  or: (filters: string) => HazoConnectQueryBuilder;
-  order: (column: string, options?: { ascending?: boolean }) => HazoConnectQueryBuilder;
-  range: (from: number, to: number) => HazoConnectQueryBuilder;
-  single: () => Promise<HazoConnectResponse<unknown>>;
-  then: <T>(resolve: (response: HazoConnectResponse<T>) => void) => Promise<void>;
-}
-
-/**
- * Response interface for hazo_connect queries
- */
-export interface HazoConnectResponse<T> {
-  data: T | null;
-  error: HazoConnectError | null;
-  count?: number;
-}
-
-/**
- * Error interface for hazo_connect
- */
-export interface HazoConnectError {
-  message: string;
-  code?: string;
-  details?: string;
-}
+export type HazoConnectInstance = import('hazo_connect').HazoConnectAdapter;
 
 /**
  * Interface for hazo_auth authentication service
@@ -214,8 +180,8 @@ export interface FileValidationResult {
  * Main HazoChat component props
  */
 export interface HazoChatProps {
-  /** hazo_connect database instance (required) */
-  hazo_connect: HazoConnectInstance;
+  /** hazo_connect adapter instance (required) - from getHazoConnectSingleton() or createHazoConnectFromEnv() */
+  hazo_connect: import('hazo_connect').HazoConnectAdapter;
   /** hazo_auth authentication service (required) */
   hazo_auth: HazoAuthInstance;
   /** UUID of the chat recipient (required) */

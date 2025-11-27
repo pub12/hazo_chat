@@ -1,0 +1,62 @@
+# =============================================================================
+# hazo_chat test-app .gitignore
+# =============================================================================
+
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Database files
+*.sqlite
+*.sqlite3
+*.db
+database.sqlite
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Vercel
+.vercel
+
+# Config files with secrets
+hazo_auth_config.ini
+hazo_notify_config.ini
+
+# Keep hazo_connect_config.ini as it's needed for setup reference
+# but exclude if it contains sensitive data
+# hazo_connect_config.ini
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary
+*.tmp
+*.temp
+.cache/
+

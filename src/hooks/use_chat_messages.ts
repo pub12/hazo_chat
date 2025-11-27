@@ -7,16 +7,19 @@
  * - Optimistic updates for sent messages
  * - Soft delete functionality
  * - Exponential backoff on errors
+ * 
+ * Uses hazo_connect's createTableQuery for database operations.
  */
 
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createTableQuery, type ExecutableQueryBuilder } from 'hazo_connect/server';
+import type { HazoConnectAdapter } from 'hazo_connect';
 import type {
   ChatMessage,
   ChatMessageDB,
   CreateMessagePayload,
-  HazoConnectInstance,
   HazoAuthInstance,
   HazoUserProfile,
   UseChatMessagesReturn,
@@ -35,7 +38,7 @@ import {
 // ============================================================================
 
 interface UseChatMessagesParams {
-  hazo_connect: HazoConnectInstance;
+  hazo_connect: HazoConnectAdapter;
   hazo_auth: HazoAuthInstance;
   reference_id?: string;
   receiver_user_id: string;
@@ -161,27 +164,21 @@ export function useChatMessages({
       }
 
       try {
-        const query = hazo_connect
-          .from('hazo_chat')
+        // Use createTableQuery to get an executable query builder
+        const query = createTableQuery(hazo_connect, 'hazo_chat')
           .select('*')
-          .eq('reference_id', reference_id)
-          .or(
-            `sender_user_id.eq.${current_user_id},receiver_user_id.eq.${current_user_id}`
-          )
-          .order('created_at', { ascending: false })
-          .range(cursor, cursor + limit - 1);
+          .where('reference_id', 'eq', reference_id)
+          .whereOr([
+            { field: 'sender_user_id', operator: 'eq', value: current_user_id },
+            { field: 'receiver_user_id', operator: 'eq', value: current_user_id }
+          ])
+          .order('created_at', 'desc')
+          .limit(limit)
+          .offset(cursor);
 
-        const response = await new Promise<{ data: ChatMessageDB[] | null; error: unknown }>(
-          (resolve) => {
-            query.then((res: { data: ChatMessageDB[] | null; error: unknown }) => resolve(res));
-          }
-        );
-
-        if (response.error) {
-          throw response.error;
-        }
-
-        return response.data || [];
+        // Execute returns data directly
+        const data = await query.execute('GET');
+        return (data as ChatMessageDB[]) || [];
       } catch (err) {
         console.error('[useChatMessages] Fetch error:', err);
         throw err;
@@ -268,31 +265,24 @@ export function useChatMessages({
       // Only fetch messages newer than the newest one we have
       const newest_timestamp = messages.length > 0 ? messages[0].created_at : null;
 
-      let query = hazo_connect
-        .from('hazo_chat')
+      // Build query using createTableQuery
+      let query = createTableQuery(hazo_connect, 'hazo_chat')
         .select('*')
-        .eq('reference_id', reference_id)
-        .or(
-          `sender_user_id.eq.${current_user_id},receiver_user_id.eq.${current_user_id}`
-        )
-        .order('created_at', { ascending: false });
+        .where('reference_id', 'eq', reference_id)
+        .whereOr([
+          { field: 'sender_user_id', operator: 'eq', value: current_user_id },
+          { field: 'receiver_user_id', operator: 'eq', value: current_user_id }
+        ])
+        .order('created_at', 'desc');
 
       // If we have messages, only fetch newer ones
       if (newest_timestamp) {
-        query = query.gt('created_at', newest_timestamp);
+        query = query.where('created_at', 'gt', newest_timestamp);
       }
 
-      const response = await new Promise<{ data: ChatMessageDB[] | null; error: unknown }>(
-        (resolve) => {
-          query.range(0, 50).then((res: { data: ChatMessageDB[] | null; error: unknown }) => resolve(res));
-        }
-      );
-
-      if (response.error) {
-        throw response.error;
-      }
-
-      const new_messages = response.data || [];
+      // Execute with limit
+      const data = await query.limit(50).execute('GET');
+      const new_messages = (data as ChatMessageDB[]) || [];
 
       if (new_messages.length > 0 && is_mounted_ref.current) {
         const transformed = await transform_messages(new_messages, current_user_id);
@@ -413,17 +403,15 @@ export function useChatMessages({
           reference_list: payload.reference_list || null
         };
 
-        const query = hazo_connect.from('hazo_chat').insert(insert_data);
-        const response = await query.single() as { data: ChatMessageDB | null; error: unknown };
-
-        if (response.error) {
-          throw response.error;
-        }
+        // Use createTableQuery for insert - execute with POST and body
+        const query = createTableQuery(hazo_connect, 'hazo_chat');
+        const data = await query.execute('POST', insert_data);
+        const result = Array.isArray(data) ? data[0] : data;
 
         // Replace optimistic message with real one
-        if (response.data && is_mounted_ref.current) {
+        if (result && is_mounted_ref.current) {
           const real_message: ChatMessage = {
-            ...response.data,
+            ...(result as ChatMessageDB),
             sender_profile: user_profiles_cache_ref.current.get(current_user_id),
             receiver_profile: user_profiles_cache_ref.current.get(payload.receiver_user_id),
             is_sender: true,
@@ -484,20 +472,12 @@ export function useChatMessages({
       );
 
       try {
-        const query = hazo_connect
-          .from('hazo_chat')
-          .update({ deleted_at: new Date().toISOString() })
-          .eq('id', message_id)
-          .eq('sender_user_id', current_user_id);
+        const update_data = { deleted_at: new Date().toISOString() };
+        const query = createTableQuery(hazo_connect, 'hazo_chat')
+          .where('id', 'eq', message_id)
+          .where('sender_user_id', 'eq', current_user_id);
 
-        const response = await new Promise<{ error: unknown }>((resolve) => {
-          query.then((res: { error: unknown }) => resolve(res));
-        });
-
-        if (response.error) {
-          throw response.error;
-        }
-
+        await query.execute('PATCH', update_data);
         return true;
       } catch (err) {
         console.error('[useChatMessages] Delete error:', err);
@@ -534,15 +514,12 @@ export function useChatMessages({
       }
 
       try {
-        const query = hazo_connect
-          .from('hazo_chat')
-          .update({ read_at: new Date().toISOString() })
-          .eq('id', message_id)
-          .eq('receiver_user_id', current_user_id);
+        const update_data = { read_at: new Date().toISOString() };
+        const query = createTableQuery(hazo_connect, 'hazo_chat')
+          .where('id', 'eq', message_id)
+          .where('receiver_user_id', 'eq', current_user_id);
 
-        await new Promise<void>((resolve) => {
-          query.then(() => resolve());
-        });
+        await query.execute('PATCH', update_data);
 
         // Update local state
         if (is_mounted_ref.current) {

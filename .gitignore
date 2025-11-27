@@ -1,17 +1,30 @@
+# =============================================================================
+# hazo_chat .gitignore
+# =============================================================================
+
 # Dependencies
 node_modules/
 .pnp
 .pnp.js
+.yarn/
 
 # Build outputs
 dist/
 build/
 *.tsbuildinfo
 
+# TypeScript compiled JS files in src (only dist should have compiled output)
+src/**/*.js
+src/**/*.js.map
+src/**/*.d.ts
+!src/**/*.config.js
+
 # Environment files
 .env
 .env.local
 .env.*.local
+.env.development
+.env.production
 
 # IDE and editor files
 .idea/
@@ -20,6 +33,9 @@ build/
 *.swo
 *.sublime-workspace
 *.sublime-project
+.project
+.classpath
+.settings/
 
 # OS generated files
 .DS_Store
@@ -29,6 +45,7 @@ build/
 .Trashes
 ehthumbs.db
 Thumbs.db
+desktop.ini
 
 # Logs
 logs/
@@ -36,30 +53,46 @@ logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
 # Testing
 coverage/
 .nyc_output/
-
-# Package manager locks (use one)
-# yarn.lock
-# package-lock.json
+*.lcov
+.jest/
 
 # Temporary files
 *.tmp
 *.temp
 .cache/
+.turbo/
 
-# Next.js
+# Next.js (test-app)
 .next/
 out/
 
 # Test app specific
 test-app/.next/
 test-app/node_modules/
+test-app/out/
+test-app/.env
+test-app/.env.local
+test-app/.env.*.local
 
 # SQLite database files
 *.sqlite
 *.sqlite3
 *.db
+
+# Config files with secrets (keep templates)
+hazo_auth_config.ini
+hazo_notify_config.ini
+!*.config.ini.example
+
+# Cursor/AI assistant folders
+.cursor/
+
+# Debug
+.debug/
 

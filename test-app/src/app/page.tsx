@@ -1,12 +1,15 @@
 /**
- * HazoChat Test Page
+ * file_description: HazoChat Test Page
  * 
  * Demonstrates the hazo_chat component with hardcoded demo messages.
+ * Requires authentication via hazo_auth - redirects to login if not authenticated.
  */
 
 'use client';
 
-import { useState, useCallback } from 'react';
+// section: imports
+import { useState, useCallback, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -31,9 +34,21 @@ import {
   IoCheckmarkDoneSharp,
   IoChevronBack,
   IoChevronForward,
-  IoLinkSharp
+  IoLinkSharp,
+  IoRefresh
 } from 'react-icons/io5';
 import { LuTextCursorInput } from 'react-icons/lu';
+// Import ProfilePicMenu and use_auth_status from hazo_auth
+// Importing directly to avoid pulling in server-side code from barrel exports
+// Webpack aliases resolve these paths
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - webpack alias resolves this path
+import { ProfilePicMenu } from 'hazo_auth/components/layouts/shared/components/profile_pic_menu';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - webpack alias resolves this path
+import { use_auth_status } from 'hazo_auth/components/layouts/shared/hooks/use_auth_status';
+import { UserCombobox } from '@/components/user_combobox';
+import { Input } from '@/components/ui/input';
 
 // ============================================================================
 // Demo Chat Component with Hardcoded Messages
@@ -125,6 +140,7 @@ const DEMO_REFERENCES: Array<{ id: string; name: string; type: 'link' | 'documen
   { id: '4', name: 'Budget.xlsx', type: 'link' }
 ];
 
+// section: helper_functions
 // Helper to get icon for reference type
 function get_ref_icon(type: 'link' | 'document' | 'field') {
   switch (type) {
@@ -138,9 +154,193 @@ function get_ref_icon(type: 'link' | 'document' | 'field') {
   }
 }
 
-function DemoChat({ on_close }: { on_close?: () => void }) {
+// section: demo_chat_component_types
+interface DemoChatProps {
+  on_close?: () => void;
+  receiver_user_id?: string;
+  reference_id?: string;
+  reference_type?: string;
+}
+
+// section: chat_message_type
+interface ChatMessageFromDB {
+  id: string;
+  sender_user_id: string;
+  receiver_user_id: string;
+  message_text: string;
+  reference_id: string;
+  reference_type: string;
+  created_at: string;
+  read_at: string | null;
+}
+
+// section: user_profile_type
+interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  avatar_url: string | null;
+}
+
+// section: demo_chat_component
+function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: DemoChatProps) {
   const [selected_ref, set_selected_ref] = useState<string | null>(null);
   const [is_preview_expanded, set_is_preview_expanded] = useState(true);
+  const [message_text, set_message_text] = useState('');
+  const [is_sending, set_is_sending] = useState(false);
+  const [chat_messages, set_chat_messages] = useState<ChatMessageFromDB[]>([]);
+  const [current_user_id, set_current_user_id] = useState<string>('');
+  const [is_loading, set_is_loading] = useState(false);
+  const [user_profiles, set_user_profiles] = useState<Map<string, UserProfile>>(new Map());
+
+  // Fetch user profiles for current user and receiver
+  useEffect(() => {
+    async function fetch_profiles() {
+      if (!current_user_id && !receiver_user_id) return;
+      
+      const user_ids_to_fetch: string[] = [];
+      if (current_user_id && !user_profiles.has(current_user_id)) {
+        user_ids_to_fetch.push(current_user_id);
+      }
+      if (receiver_user_id && !user_profiles.has(receiver_user_id)) {
+        user_ids_to_fetch.push(receiver_user_id);
+      }
+
+      if (user_ids_to_fetch.length === 0) return;
+
+      try {
+        const response = await fetch('/api/hazo_auth/profiles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_ids: user_ids_to_fetch }),
+        });
+        const data = await response.json();
+
+        if (data.success && data.profiles) {
+          set_user_profiles(prev => {
+            const new_map = new Map(prev);
+            data.profiles.forEach((profile: UserProfile) => {
+              new_map.set(profile.id, profile);
+            });
+            return new_map;
+          });
+          console.log('User profiles loaded:', data.profiles.length);
+        }
+      } catch (error) {
+        console.error('Error fetching user profiles:', error);
+      }
+    }
+
+    fetch_profiles();
+  }, [current_user_id, receiver_user_id, user_profiles]);
+
+  // Fetch chat history on mount or when props change
+  useEffect(() => {
+    async function fetch_chat_history() {
+      if (!receiver_user_id) {
+        set_chat_messages([]);
+        return;
+      }
+
+      set_is_loading(true);
+      try {
+        const params = new URLSearchParams({
+          receiver_user_id,
+          ...(reference_id && { reference_id }),
+          ...(reference_type && { reference_type }),
+        });
+
+        const response = await fetch(`/api/hazo_chat/messages?${params.toString()}`);
+        const data = await response.json();
+
+        if (data.success) {
+          set_chat_messages(data.messages || []);
+          set_current_user_id(data.current_user_id || '');
+          console.log('Chat history loaded:', data.messages?.length || 0, 'messages');
+        } else {
+          console.error('Failed to fetch chat history:', data.error);
+          set_chat_messages([]);
+        }
+      } catch (error) {
+        console.error('Error fetching chat history:', error);
+        set_chat_messages([]);
+      } finally {
+        set_is_loading(false);
+      }
+    }
+
+    fetch_chat_history();
+  }, [receiver_user_id, reference_id, reference_type]);
+
+  // Helper function to get initials from name
+  const get_initials = (name: string): string => {
+    return name
+      .split(' ')
+      .map(part => part[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2);
+  };
+
+  // Handle sending message
+  const handle_send_message = async () => {
+    if (!message_text.trim() || is_sending) return;
+    
+    if (!receiver_user_id) {
+      alert('Please select a user to chat with');
+      return;
+    }
+
+    set_is_sending(true);
+    
+    try {
+      const response = await fetch('/api/hazo_chat/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          receiver_user_id,
+          message_text: message_text.trim(),
+          reference_id,
+          reference_type,
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        // Add to chat messages for display
+        const new_message: ChatMessageFromDB = {
+          id: data.message.id,
+          sender_user_id: data.message.sender_user_id,
+          receiver_user_id: data.message.receiver_user_id,
+          message_text: data.message.message_text,
+          reference_id: data.message.reference_id,
+          reference_type: data.message.reference_type,
+          created_at: data.message.created_at,
+          read_at: null,
+        };
+        set_chat_messages(prev => [...prev, new_message]);
+        set_message_text('');
+        console.log('Message sent successfully:', data.message);
+      } else {
+        console.error('Failed to send message:', data.error);
+        alert(`Failed to send message: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      alert('Failed to send message. Please try again.');
+    } finally {
+      set_is_sending(false);
+    }
+  };
+
+  // Handle Enter key press
+  const handle_key_press = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handle_send_message();
+    }
+  };
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -156,6 +356,7 @@ function DemoChat({ on_close }: { on_close?: () => void }) {
             size="icon"
             onClick={on_close}
             className="h-8 w-8 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            aria-label="Close chat"
           >
             <IoClose className="h-4 w-4" />
           </Button>
@@ -175,6 +376,7 @@ function DemoChat({ on_close }: { on_close?: () => void }) {
               size="sm"
               onClick={() => set_selected_ref(selected_ref === ref.id ? null : ref.id)}
               className="h-7 px-2.5 text-xs font-medium rounded-full flex items-center"
+              aria-label={`Reference: ${ref.name}`}
             >
               {ref.name}
               {get_ref_icon(ref.type)}
@@ -224,61 +426,92 @@ function DemoChat({ on_close }: { on_close?: () => void }) {
 
         {/* Chat messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {DEMO_MESSAGES.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex items-end gap-2 ${msg.sender === 'me' ? 'flex-row-reverse' : ''}`}
-            >
-              {/* Avatar */}
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 ${
-                msg.sender === 'me' 
-                  ? 'bg-primary/20 text-primary' 
-                  : 'bg-muted text-muted-foreground'
-              }`}>
-                {msg.avatar}
-              </div>
-
-              {/* Message bubble */}
-              <div className={`max-w-[70%] flex flex-col ${msg.sender === 'me' ? 'items-end' : 'items-start'}`}>
-                {msg.sender === 'other' && (
-                  <span className="text-xs text-muted-foreground mb-1 ml-1">{msg.name}</span>
-                )}
-                <div className={`rounded-2xl px-4 py-2 ${
-                  msg.sender === 'me'
-                    ? 'bg-primary text-primary-foreground rounded-br-md'
-                    : 'bg-muted rounded-bl-md'
-                }`}>
-                  <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
-                  {msg.attachment && (
-                    <div className="mt-2 pt-2 border-t border-current/10">
-                      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs gap-1">
-                        <IoDocumentAttachSharp className="h-3 w-3" />
-                        {msg.attachment.name}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-                <div className={`flex items-center gap-1 mt-1 ${msg.sender === 'me' ? 'flex-row-reverse' : ''}`}>
-                  <span className="text-xs text-muted-foreground">{msg.time}</span>
-                  {msg.sender === 'me' && (
-                    msg.status === 'read' 
-                      ? <IoCheckmarkDoneSharp className="h-3 w-3 text-green-500" />
-                      : <IoCheckmarkOutline className="h-3 w-3 text-muted-foreground" />
-                  )}
-                </div>
-              </div>
+          {/* Loading state */}
+          {is_loading && (
+            <div className="flex items-center justify-center h-full">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-primary" />
             </div>
-          ))}
+          )}
+
+          {/* No receiver selected */}
+          {!is_loading && !receiver_user_id && (
+            <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+              Select a user to start chatting
+            </div>
+          )}
+
+          {/* No messages yet */}
+          {!is_loading && receiver_user_id && chat_messages.length === 0 && (
+            <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+              No messages yet. Start the conversation!
+            </div>
+          )}
+
+          {/* Chat messages from database */}
+          {!is_loading && chat_messages.map((msg) => {
+            const is_me = msg.sender_user_id === current_user_id;
+            const msg_time = new Date(msg.created_at).toLocaleTimeString('en-US', { 
+              hour: 'numeric', 
+              minute: '2-digit' 
+            });
+            const sender_profile = user_profiles.get(msg.sender_user_id);
+            const avatar_url = sender_profile?.avatar_url;
+            const sender_name = sender_profile?.name || (is_me ? 'Me' : 'User');
+            const initials = get_initials(sender_name);
+            
+            return (
+              <div
+                key={msg.id}
+                className={`flex items-end gap-2 ${is_me ? 'flex-row-reverse' : ''}`}
+              >
+                {/* Avatar */}
+                {avatar_url ? (
+                  <img
+                    src={avatar_url}
+                    alt={`${sender_name}'s profile picture`}
+                    className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                  />
+                ) : (
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 ${
+                    is_me 
+                      ? 'bg-primary/20 text-primary' 
+                      : 'bg-muted text-muted-foreground'
+                  }`}>
+                    {initials}
+                  </div>
+                )}
+
+                {/* Message bubble */}
+                <div className={`max-w-[70%] flex flex-col ${is_me ? 'items-end' : 'items-start'}`}>
+                  <div className={`rounded-2xl px-4 py-2 ${
+                    is_me
+                      ? 'bg-primary text-primary-foreground rounded-br-md'
+                      : 'bg-muted rounded-bl-md'
+                  }`}>
+                    <p className="text-sm whitespace-pre-wrap">{msg.message_text}</p>
+                  </div>
+                  <div className={`flex items-center gap-1 mt-1 ${is_me ? 'flex-row-reverse' : ''}`}>
+                    <span className="text-xs text-muted-foreground">{msg_time}</span>
+                    {is_me && (
+                      msg.read_at 
+                        ? <IoCheckmarkDoneSharp className="h-3 w-3 text-green-500" />
+                        : <IoCheckmarkOutline className="h-3 w-3 text-muted-foreground" />
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
       {/* Row 4: Input */}
       <div className="border-t bg-background p-3">
         <div className="flex items-end gap-2">
-          <Button variant="ghost" size="icon" className="h-12 w-12 text-muted-foreground hover:text-foreground">
+          <Button variant="ghost" size="icon" className="h-12 w-12 text-muted-foreground hover:text-foreground" aria-label="Attach file">
             <IoAttach className="h-8 w-8" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-12 w-12 text-muted-foreground hover:text-foreground">
+          <Button variant="ghost" size="icon" className="h-12 w-12 text-muted-foreground hover:text-foreground" aria-label="Attach image">
             <IoImageOutline className="h-8 w-8" />
           </Button>
           <div className="flex-1">
@@ -286,9 +519,20 @@ function DemoChat({ on_close }: { on_close?: () => void }) {
               placeholder="Type a message..."
               className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[40px] max-h-[120px]"
               rows={1}
+              aria-label="Message input"
+              value={message_text}
+              onChange={(e) => set_message_text(e.target.value)}
+              onKeyPress={handle_key_press}
+              disabled={is_sending}
             />
           </div>
-          <Button size="icon" className="h-10 w-10">
+          <Button 
+            size="icon" 
+            className="cls_send_btn h-10 w-10" 
+            aria-label="Send message"
+            onClick={handle_send_message}
+            disabled={is_sending || !message_text.trim()}
+          >
             <IoSend className="h-4 w-4" />
           </Button>
         </div>
@@ -302,15 +546,58 @@ function DemoChat({ on_close }: { on_close?: () => void }) {
 // ============================================================================
 
 export default function HazoChatTestPage() {
+  const router = useRouter();
+  const auth_status = use_auth_status();
   const [is_sheet_open, set_is_sheet_open] = useState(false);
   const [is_dialog_open, set_is_dialog_open] = useState(false);
   const [current_view, set_current_view] = useState<'embedded' | 'sheet' | 'dialog'>('embedded');
+  const [selected_user_id, set_selected_user_id] = useState<string>('');
+  const [reference_id, set_reference_id] = useState<string>('');
+  const [reference_type, set_reference_type] = useState<string>('chat');
+  const [chat_key, set_chat_key] = useState<number>(0);
+
+  // Refresh chat with current inputs
+  const handle_refresh_chat = useCallback(() => {
+    set_chat_key(prev => prev + 1);
+  }, []);
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!auth_status.loading && !auth_status.authenticated) {
+      const current_path = window.location.pathname;
+      router.push(`/hazo_auth/login?redirect=${encodeURIComponent(current_path)}`);
+    }
+  }, [auth_status.loading, auth_status.authenticated, router]);
 
   const handle_close = useCallback(() => {
     set_is_sheet_open(false);
     set_is_dialog_open(false);
     set_current_view('embedded');
   }, []);
+
+  // Show loading state while checking authentication
+  if (auth_status.loading) {
+    return (
+      <main className="cls_test_page min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 dark:from-slate-950 dark:via-slate-900 dark:to-slate-800 flex items-center justify-center">
+        <div className="cls_loading_container flex flex-col items-center gap-4">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-300 border-t-primary" />
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
+      </main>
+    );
+  }
+
+  // Don't render content if not authenticated (will redirect)
+  if (!auth_status.authenticated) {
+    return (
+      <main className="cls_test_page min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 dark:from-slate-950 dark:via-slate-900 dark:to-slate-800 flex items-center justify-center">
+        <div className="cls_redirecting_container flex flex-col items-center gap-4">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-300 border-t-primary" />
+          <p className="text-sm text-muted-foreground">Redirecting to login...</p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="cls_test_page min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 dark:from-slate-950 dark:via-slate-900 dark:to-slate-800">
@@ -327,53 +614,78 @@ export default function HazoChatTestPage() {
               </p>
             </div>
             
-            {/* View Toggle Buttons */}
-            <div className="cls_view_toggles flex items-center gap-2">
-              <Button
-                variant={current_view === 'embedded' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => set_current_view('embedded')}
-                className="gap-2"
-              >
-                <IoLayers className="h-4 w-4" />
-                Embedded
-              </Button>
-              
-              <Sheet open={is_sheet_open} onOpenChange={set_is_sheet_open}>
-                <SheetTrigger asChild>
-                  <Button
-                    variant={current_view === 'sheet' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => set_current_view('sheet')}
-                    className="gap-2"
-                  >
-                    <IoChatbubbleEllipses className="h-4 w-4" />
-                    Sheet
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="right" className="w-full sm:max-w-xl p-0">
-                  <div className="h-full">
-                    <DemoChat on_close={() => set_is_sheet_open(false)} />
-                  </div>
-                </SheetContent>
-              </Sheet>
+            {/* View Toggle Buttons and Profile Menu */}
+            <div className="cls_view_toggles flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={current_view === 'embedded' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => set_current_view('embedded')}
+                  className="gap-2"
+                  aria-label="Embedded view"
+                >
+                  <IoLayers className="h-4 w-4" />
+                  Embedded
+                </Button>
+                
+                <Sheet open={is_sheet_open} onOpenChange={set_is_sheet_open}>
+                  <SheetTrigger asChild>
+                    <Button
+                      variant={current_view === 'sheet' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => set_current_view('sheet')}
+                      className="gap-2"
+                      aria-label="Sheet view"
+                    >
+                      <IoChatbubbleEllipses className="h-4 w-4" />
+                      Sheet
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent side="right" className="w-full sm:max-w-xl p-0">
+                    <div className="h-full">
+                      <DemoChat 
+                        key={`sheet-${chat_key}`}
+                        on_close={() => set_is_sheet_open(false)} 
+                        receiver_user_id={selected_user_id}
+                        reference_id={reference_id}
+                        reference_type={reference_type}
+                      />
+                    </div>
+                  </SheetContent>
+                </Sheet>
 
-              <Dialog open={is_dialog_open} onOpenChange={set_is_dialog_open}>
-                <DialogTrigger asChild>
-                  <Button
-                    variant={current_view === 'dialog' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => set_current_view('dialog')}
-                    className="gap-2"
-                  >
-                    <IoExpand className="h-4 w-4" />
-                    Dialog
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-4xl h-[80vh] p-0 gap-0">
-                  <DemoChat />
-                </DialogContent>
-              </Dialog>
+                <Dialog open={is_dialog_open} onOpenChange={set_is_dialog_open}>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant={current_view === 'dialog' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => set_current_view('dialog')}
+                      className="gap-2"
+                      aria-label="Dialog view"
+                    >
+                      <IoExpand className="h-4 w-4" />
+                      Dialog
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-4xl h-[80vh] p-0 gap-0">
+                    <DemoChat 
+                      key={`dialog-${chat_key}`}
+                      receiver_user_id={selected_user_id}
+                      reference_id={reference_id}
+                      reference_type={reference_type}
+                    />
+                  </DialogContent>
+                </Dialog>
+              </div>
+              
+              {/* Profile Pic Menu */}
+              <ProfilePicMenu
+                login_path="/hazo_auth/login"
+                register_path="/hazo_auth/register"
+                settings_path="/hazo_auth/my_settings"
+                logout_path="/api/hazo_auth/logout"
+                className="ml-2"
+              />
             </div>
           </div>
         </div>
@@ -381,11 +693,74 @@ export default function HazoChatTestPage() {
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8">
+        {/* Test Inputs (Testing Only) */}
+        <div className="cls_user_selection mb-6 flex flex-wrap items-center gap-4">
+          {/* User Selection */}
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
+              Chat with:
+            </label>
+            <UserCombobox
+              value={selected_user_id}
+              onValueChange={(userId) => set_selected_user_id(userId)}
+              placeholder="Select a user to chat with..."
+            />
+          </div>
+          
+          {/* Reference ID Input */}
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
+              Reference ID:
+            </label>
+            <Input
+              type="text"
+              value={reference_id}
+              onChange={(e) => set_reference_id(e.target.value)}
+              placeholder="e.g. project-123"
+              className="w-40"
+              aria-label="Reference ID input"
+            />
+          </div>
+          
+          {/* Reference Type Input */}
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
+              Reference Type:
+            </label>
+            <Input
+              type="text"
+              value={reference_type}
+              onChange={(e) => set_reference_type(e.target.value)}
+              placeholder="e.g. chat, project"
+              className="w-36"
+              aria-label="Reference Type input"
+            />
+          </div>
+          
+          {/* Refresh Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handle_refresh_chat}
+            className="gap-2"
+            aria-label="Refresh chat with current inputs"
+          >
+            <IoRefresh className="h-4 w-4" />
+            Refresh Chat
+          </Button>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Chat Container - Embedded View */}
           <div className="lg:col-span-2">
             <div className="cls_chat_container bg-white dark:bg-slate-900 rounded-xl shadow-lg border overflow-hidden h-[700px]">
-              <DemoChat on_close={handle_close} />
+              <DemoChat 
+                key={`embedded-${chat_key}`}
+                on_close={handle_close}
+                receiver_user_id={selected_user_id}
+                reference_id={reference_id}
+                reference_type={reference_type}
+              />
             </div>
           </div>
 

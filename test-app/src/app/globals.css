@@ -8,6 +8,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Fix password field toggle button positioning */
+.cls_password_field_toggle {
+  right: 0.5rem !important;
+  height: 2rem !important;
+  width: 2rem !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
 @layer base {
   :root {
     --radius: 0.625rem;
