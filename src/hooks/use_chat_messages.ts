@@ -133,6 +133,7 @@ export function useChatMessages({
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ user_ids: uncached_ids }),
+            credentials: 'include'
           });
 
           if (response.ok) {
@@ -199,7 +200,9 @@ export function useChatMessages({
           ...(reference_type && { reference_type }),
         });
 
-        const response = await fetch(`${api_base_url}/messages?${params.toString()}`);
+        const response = await fetch(`${api_base_url}/messages?${params.toString()}`, {
+          credentials: 'include'
+        });
         
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
@@ -426,6 +429,7 @@ export function useChatMessages({
         const response = await fetch(`${api_base_url}/messages`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({
             receiver_user_id: payload.receiver_user_id,
             message_text: payload.message_text,
@@ -503,6 +507,7 @@ export function useChatMessages({
       try {
         const response = await fetch(`${api_base_url}/messages/${message_id}`, {
           method: 'DELETE',
+          credentials: 'include'
         });
 
         if (!response.ok) {
@@ -547,6 +552,7 @@ export function useChatMessages({
       try {
         const response = await fetch(`${api_base_url}/messages/${message_id}/read`, {
           method: 'PATCH',
+          credentials: 'include'
         });
 
         if (response.ok && is_mounted_ref.current) {

@@ -195,7 +195,9 @@ export function HazoChatProvider({
     async function load_current_user() {
       try {
         // Try to get current user from hazo_auth me endpoint
-        const response = await fetch('/api/hazo_auth/me');
+        const response = await fetch('/api/hazo_auth/me', {
+          credentials: 'include'
+        });
         
         if (response.ok) {
           const data = await response.json();
