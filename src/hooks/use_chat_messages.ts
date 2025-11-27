@@ -8,23 +8,20 @@
  * - Soft delete functionality
  * - Exponential backoff on errors
  * 
- * Uses hazo_connect's createTableQuery for database operations.
+ * Uses fetch() to call API endpoints instead of direct database access.
+ * This allows the hook to work in client components without Node.js dependencies.
  */
 
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { createTableQuery, type ExecutableQueryBuilder } from 'hazo_connect/server';
-import type { HazoConnectAdapter } from 'hazo_connect';
 import type {
   ChatMessage,
   ChatMessageDB,
   CreateMessagePayload,
-  HazoAuthInstance,
   HazoUserProfile,
   UseChatMessagesReturn,
-  PollingStatus,
-  ChatReferenceItem
+  PollingStatus
 } from '../types/index.js';
 import {
   DEFAULT_POLLING_INTERVAL,
@@ -37,13 +34,42 @@ import {
 // Hook Parameters
 // ============================================================================
 
-interface UseChatMessagesParams {
-  hazo_connect: HazoConnectAdapter;
-  hazo_auth: HazoAuthInstance;
-  reference_id?: string;
+export interface UseChatMessagesParams {
+  /** UUID of the chat recipient (required) */
   receiver_user_id: string;
+  /** Reference ID for chat context grouping */
+  reference_id?: string;
+  /** Reference type (default: 'chat') */
+  reference_type?: string;
+  /** Base URL for API endpoints (default: '/api/hazo_chat') */
+  api_base_url?: string;
+  /** Polling interval in milliseconds (default: 3000) */
   polling_interval?: number;
+  /** Number of messages per page for pagination (default: 20) */
   messages_per_page?: number;
+}
+
+// ============================================================================
+// API Response Types
+// ============================================================================
+
+interface MessagesApiResponse {
+  success: boolean;
+  messages?: ChatMessageDB[];
+  current_user_id?: string;
+  error?: string;
+}
+
+interface SendMessageApiResponse {
+  success: boolean;
+  message?: ChatMessageDB;
+  error?: string;
+}
+
+interface ProfilesApiResponse {
+  success: boolean;
+  profiles?: HazoUserProfile[];
+  error?: string;
 }
 
 // ============================================================================
@@ -51,10 +77,10 @@ interface UseChatMessagesParams {
 // ============================================================================
 
 export function useChatMessages({
-  hazo_connect,
-  hazo_auth,
-  reference_id,
   receiver_user_id,
+  reference_id = '',
+  reference_type = 'chat',
+  api_base_url = '/api/hazo_chat',
   polling_interval = DEFAULT_POLLING_INTERVAL,
   messages_per_page = DEFAULT_MESSAGES_PER_PAGE
 }: UseChatMessagesParams): UseChatMessagesReturn {
@@ -79,28 +105,20 @@ export function useChatMessages({
   const is_mounted_ref = useRef(true);
 
   // -------------------------------------------------------------------------
-  // Get current user on mount
+  // Cleanup on unmount
   // -------------------------------------------------------------------------
   useEffect(() => {
-    async function get_current_user() {
-      try {
-        const auth_user = await hazo_auth.hazo_get_auth();
-        if (auth_user && is_mounted_ref.current) {
-          set_current_user_id(auth_user.id);
-        }
-      } catch (err) {
-        console.error('[useChatMessages] Failed to get current user:', err);
-      }
-    }
-    get_current_user();
-
+    is_mounted_ref.current = true;
     return () => {
       is_mounted_ref.current = false;
+      if (polling_timer_ref.current) {
+        clearInterval(polling_timer_ref.current);
+      }
     };
-  }, [hazo_auth]);
+  }, []);
 
   // -------------------------------------------------------------------------
-  // Fetch user profiles
+  // Fetch user profiles via API
   // -------------------------------------------------------------------------
   const fetch_user_profiles = useCallback(
     async (user_ids: string[]): Promise<Map<string, HazoUserProfile>> => {
@@ -110,10 +128,21 @@ export function useChatMessages({
 
       if (uncached_ids.length > 0) {
         try {
-          const profiles = await hazo_auth.hazo_get_user_profiles(uncached_ids);
-          profiles.forEach((profile) => {
-            user_profiles_cache_ref.current.set(profile.id, profile);
+          // Use the hazo_auth profiles endpoint
+          const response = await fetch('/api/hazo_auth/profiles', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_ids: uncached_ids }),
           });
+
+          if (response.ok) {
+            const data: ProfilesApiResponse = await response.json();
+            if (data.success && data.profiles) {
+              data.profiles.forEach((profile) => {
+                user_profiles_cache_ref.current.set(profile.id, profile);
+              });
+            }
+          }
         } catch (err) {
           console.error('[useChatMessages] Failed to fetch user profiles:', err);
         }
@@ -121,7 +150,7 @@ export function useChatMessages({
 
       return user_profiles_cache_ref.current;
     },
-    [hazo_auth]
+    []
   );
 
   // -------------------------------------------------------------------------
@@ -155,43 +184,50 @@ export function useChatMessages({
   );
 
   // -------------------------------------------------------------------------
-  // Fetch messages
+  // Fetch messages via API
   // -------------------------------------------------------------------------
-  const fetch_messages = useCallback(
-    async (cursor: number, limit: number): Promise<ChatMessageDB[]> => {
-      if (!reference_id || !current_user_id) {
-        return [];
+  const fetch_messages_from_api = useCallback(
+    async (): Promise<{ messages: ChatMessageDB[]; user_id: string | null }> => {
+      if (!receiver_user_id) {
+        return { messages: [], user_id: null };
       }
 
       try {
-        // Use createTableQuery to get an executable query builder
-        const query = createTableQuery(hazo_connect, 'hazo_chat')
-          .select('*')
-          .where('reference_id', 'eq', reference_id)
-          .whereOr([
-            { field: 'sender_user_id', operator: 'eq', value: current_user_id },
-            { field: 'receiver_user_id', operator: 'eq', value: current_user_id }
-          ])
-          .order('created_at', 'desc')
-          .limit(limit)
-          .offset(cursor);
+        const params = new URLSearchParams({
+          receiver_user_id,
+          ...(reference_id && { reference_id }),
+          ...(reference_type && { reference_type }),
+        });
 
-        // Execute returns data directly
-        const data = await query.execute('GET');
-        return (data as ChatMessageDB[]) || [];
+        const response = await fetch(`${api_base_url}/messages?${params.toString()}`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data: MessagesApiResponse = await response.json();
+
+        if (data.success) {
+          return {
+            messages: data.messages || [],
+            user_id: data.current_user_id || null
+          };
+        } else {
+          throw new Error(data.error || 'Failed to fetch messages');
+        }
       } catch (err) {
         console.error('[useChatMessages] Fetch error:', err);
         throw err;
       }
     },
-    [hazo_connect, reference_id, current_user_id]
+    [receiver_user_id, reference_id, reference_type, api_base_url]
   );
 
   // -------------------------------------------------------------------------
   // Initial load
   // -------------------------------------------------------------------------
   const load_initial = useCallback(async () => {
-    if (!current_user_id || !reference_id) {
+    if (!receiver_user_id) {
       set_is_loading(false);
       return;
     }
@@ -200,12 +236,19 @@ export function useChatMessages({
     set_error(null);
 
     try {
-      const db_messages = await fetch_messages(0, messages_per_page);
-      const transformed = await transform_messages(db_messages, current_user_id);
+      const { messages: db_messages, user_id } = await fetch_messages_from_api();
       
+      if (user_id && is_mounted_ref.current) {
+        set_current_user_id(user_id);
+      }
+
       if (is_mounted_ref.current) {
+        const transformed = user_id 
+          ? await transform_messages(db_messages, user_id)
+          : db_messages.map(msg => ({ ...msg, is_sender: false, send_status: 'sent' as const }));
+        
         set_messages(transformed);
-        set_has_more(db_messages.length === messages_per_page);
+        set_has_more(db_messages.length >= messages_per_page);
         cursor_ref.current = db_messages.length;
         retry_count_ref.current = 0;
         set_polling_status('connected');
@@ -220,10 +263,10 @@ export function useChatMessages({
         set_is_loading(false);
       }
     }
-  }, [current_user_id, reference_id, fetch_messages, transform_messages, messages_per_page]);
+  }, [receiver_user_id, fetch_messages_from_api, transform_messages, messages_per_page]);
 
   // -------------------------------------------------------------------------
-  // Load more (pagination)
+  // Load more (pagination) - Note: simplified, API should support pagination params
   // -------------------------------------------------------------------------
   const load_more = useCallback(async () => {
     if (!current_user_id || !has_more || is_loading_more) {
@@ -233,16 +276,14 @@ export function useChatMessages({
     set_is_loading_more(true);
 
     try {
-      const db_messages = await fetch_messages(
-        cursor_ref.current,
-        messages_per_page
-      );
+      // For now, reload all messages - pagination can be added to API later
+      const { messages: db_messages } = await fetch_messages_from_api();
       const transformed = await transform_messages(db_messages, current_user_id);
 
       if (is_mounted_ref.current) {
-        set_messages((prev) => [...prev, ...transformed]);
-        set_has_more(db_messages.length === messages_per_page);
-        cursor_ref.current += db_messages.length;
+        set_messages(transformed);
+        set_has_more(false); // Simplified - loaded all
+        cursor_ref.current = db_messages.length;
       }
     } catch (err) {
       console.error('[useChatMessages] Load more error:', err);
@@ -251,49 +292,37 @@ export function useChatMessages({
         set_is_loading_more(false);
       }
     }
-  }, [current_user_id, has_more, is_loading_more, fetch_messages, transform_messages, messages_per_page]);
+  }, [current_user_id, has_more, is_loading_more, fetch_messages_from_api, transform_messages]);
 
   // -------------------------------------------------------------------------
   // Poll for new messages
   // -------------------------------------------------------------------------
   const poll_for_new_messages = useCallback(async () => {
-    if (!current_user_id || !reference_id) {
+    if (!current_user_id || !receiver_user_id) {
       return;
     }
 
     try {
-      // Only fetch messages newer than the newest one we have
-      const newest_timestamp = messages.length > 0 ? messages[0].created_at : null;
+      const { messages: db_messages } = await fetch_messages_from_api();
 
-      // Build query using createTableQuery
-      let query = createTableQuery(hazo_connect, 'hazo_chat')
-        .select('*')
-        .where('reference_id', 'eq', reference_id)
-        .whereOr([
-          { field: 'sender_user_id', operator: 'eq', value: current_user_id },
-          { field: 'receiver_user_id', operator: 'eq', value: current_user_id }
-        ])
-        .order('created_at', 'desc');
-
-      // If we have messages, only fetch newer ones
-      if (newest_timestamp) {
-        query = query.where('created_at', 'gt', newest_timestamp);
-      }
-
-      // Execute with limit
-      const data = await query.limit(50).execute('GET');
-      const new_messages = (data as ChatMessageDB[]) || [];
-
-      if (new_messages.length > 0 && is_mounted_ref.current) {
-        const transformed = await transform_messages(new_messages, current_user_id);
+      if (db_messages.length > 0 && is_mounted_ref.current) {
+        const transformed = await transform_messages(db_messages, current_user_id);
+        
         set_messages((prev) => {
-          // Filter out any optimistic messages that now have real versions
-          const filtered = prev.filter(
-            (msg) => !new_messages.some((nm) => nm.id === msg.id)
-          );
-          return [...transformed, ...filtered];
+          // Merge new messages, avoiding duplicates
+          const existing_ids = new Set(prev.map(m => m.id));
+          const new_messages = transformed.filter(m => !existing_ids.has(m.id));
+          
+          if (new_messages.length > 0) {
+            // Combine and sort by created_at
+            const combined = [...prev, ...new_messages];
+            combined.sort((a, b) => 
+              new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+            );
+            return combined;
+          }
+          return prev;
         });
-        cursor_ref.current += new_messages.length;
       }
 
       retry_count_ref.current = 0;
@@ -312,13 +341,13 @@ export function useChatMessages({
         }
       }
     }
-  }, [current_user_id, reference_id, messages, hazo_connect, transform_messages]);
+  }, [current_user_id, receiver_user_id, fetch_messages_from_api, transform_messages]);
 
   // -------------------------------------------------------------------------
   // Start polling
   // -------------------------------------------------------------------------
   useEffect(() => {
-    if (!current_user_id || !reference_id) {
+    if (!receiver_user_id) {
       return;
     }
 
@@ -351,7 +380,7 @@ export function useChatMessages({
         clearInterval(polling_timer_ref.current);
       }
     };
-  }, [current_user_id, reference_id, polling_interval, poll_for_new_messages]);
+  }, [receiver_user_id, polling_interval, poll_for_new_messages]);
 
   // -------------------------------------------------------------------------
   // Initial load effect
@@ -361,7 +390,7 @@ export function useChatMessages({
   }, [load_initial]);
 
   // -------------------------------------------------------------------------
-  // Send message
+  // Send message via API
   // -------------------------------------------------------------------------
   const send_message = useCallback(
     async (payload: CreateMessagePayload): Promise<boolean> => {
@@ -391,27 +420,26 @@ export function useChatMessages({
       };
 
       // Add optimistic message to state
-      set_messages((prev) => [optimistic_message, ...prev]);
+      set_messages((prev) => [...prev, optimistic_message]);
 
       try {
-        const insert_data = {
-          reference_id: payload.reference_id,
-          reference_type: payload.reference_type,
-          sender_user_id: current_user_id,
-          receiver_user_id: payload.receiver_user_id,
-          message_text: payload.message_text,
-          reference_list: payload.reference_list || null
-        };
+        const response = await fetch(`${api_base_url}/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            receiver_user_id: payload.receiver_user_id,
+            message_text: payload.message_text,
+            reference_id: payload.reference_id,
+            reference_type: payload.reference_type,
+          }),
+        });
 
-        // Use createTableQuery for insert - execute with POST and body
-        const query = createTableQuery(hazo_connect, 'hazo_chat');
-        const data = await query.execute('POST', insert_data);
-        const result = Array.isArray(data) ? data[0] : data;
+        const data: SendMessageApiResponse = await response.json();
 
-        // Replace optimistic message with real one
-        if (result && is_mounted_ref.current) {
+        if (data.success && data.message && is_mounted_ref.current) {
+          // Replace optimistic message with real one
           const real_message: ChatMessage = {
-            ...(result as ChatMessageDB),
+            ...data.message,
             sender_profile: user_profiles_cache_ref.current.get(current_user_id),
             receiver_profile: user_profiles_cache_ref.current.get(payload.receiver_user_id),
             is_sender: true,
@@ -423,9 +451,10 @@ export function useChatMessages({
               msg.id === optimistic_id ? real_message : msg
             )
           );
+          return true;
+        } else {
+          throw new Error(data.error || 'Failed to send message');
         }
-
-        return true;
       } catch (err) {
         console.error('[useChatMessages] Send error:', err);
 
@@ -443,11 +472,11 @@ export function useChatMessages({
         return false;
       }
     },
-    [current_user_id, hazo_connect]
+    [current_user_id, api_base_url]
   );
 
   // -------------------------------------------------------------------------
-  // Delete message (soft delete)
+  // Delete message (soft delete) via API
   // -------------------------------------------------------------------------
   const delete_message = useCallback(
     async (message_id: string): Promise<boolean> => {
@@ -472,12 +501,14 @@ export function useChatMessages({
       );
 
       try {
-        const update_data = { deleted_at: new Date().toISOString() };
-        const query = createTableQuery(hazo_connect, 'hazo_chat')
-          .where('id', 'eq', message_id)
-          .where('sender_user_id', 'eq', current_user_id);
+        const response = await fetch(`${api_base_url}/messages/${message_id}`, {
+          method: 'DELETE',
+        });
 
-        await query.execute('PATCH', update_data);
+        if (!response.ok) {
+          throw new Error('Failed to delete message');
+        }
+
         return true;
       } catch (err) {
         console.error('[useChatMessages] Delete error:', err);
@@ -496,11 +527,11 @@ export function useChatMessages({
         return false;
       }
     },
-    [current_user_id, messages, hazo_connect]
+    [current_user_id, messages, api_base_url]
   );
 
   // -------------------------------------------------------------------------
-  // Mark as read
+  // Mark as read via API
   // -------------------------------------------------------------------------
   const mark_as_read = useCallback(
     async (message_id: string): Promise<void> => {
@@ -514,15 +545,11 @@ export function useChatMessages({
       }
 
       try {
-        const update_data = { read_at: new Date().toISOString() };
-        const query = createTableQuery(hazo_connect, 'hazo_chat')
-          .where('id', 'eq', message_id)
-          .where('receiver_user_id', 'eq', current_user_id);
+        const response = await fetch(`${api_base_url}/messages/${message_id}/read`, {
+          method: 'PATCH',
+        });
 
-        await query.execute('PATCH', update_data);
-
-        // Update local state
-        if (is_mounted_ref.current) {
+        if (response.ok && is_mounted_ref.current) {
           set_messages((prev) =>
             prev.map((msg) =>
               msg.id === message_id
@@ -535,7 +562,7 @@ export function useChatMessages({
         console.error('[useChatMessages] Mark as read error:', err);
       }
     },
-    [current_user_id, messages, hazo_connect]
+    [current_user_id, messages, api_base_url]
   );
 
   // -------------------------------------------------------------------------
@@ -564,4 +591,3 @@ export function useChatMessages({
     refresh
   };
 }
-

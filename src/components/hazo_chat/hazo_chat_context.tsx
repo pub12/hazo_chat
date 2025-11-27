@@ -3,11 +3,13 @@
  * 
  * Provides centralized state management for:
  * - Selected reference/document
- * - Current user profile (cached)
+ * - Current user profile (fetched via API)
  * - Pending file attachments
  * - Sidebar collapsed state (mobile)
  * - Polling connection status
  * - Error handling
+ * 
+ * Uses API calls to fetch user data - no server-side dependencies.
  */
 
 'use client';
@@ -27,8 +29,7 @@ import type {
   ChatReferenceItem,
   PendingAttachment,
   HazoUserProfile,
-  PollingStatus,
-  HazoAuthInstance
+  PollingStatus
 } from '../../types/index.js';
 
 // ============================================================================
@@ -158,7 +159,9 @@ const HazoChatContext = createContext<HazoChatContextValue | null>(null);
 
 interface HazoChatProviderProps {
   children: ReactNode;
-  hazo_auth: HazoAuthInstance;
+  /** Base URL for API endpoints (default: '/api/hazo_chat') */
+  api_base_url?: string;
+  /** Initial references from props */
   initial_references?: ChatReferenceItem[];
 }
 
@@ -169,13 +172,15 @@ interface HazoChatProviderProps {
 /**
  * HazoChatProvider - Context provider for HazoChat component tree
  * 
+ * Fetches current user via API on mount.
+ * 
  * @param children - Child components
- * @param hazo_auth - Authentication service instance
+ * @param api_base_url - Base URL for API endpoints
  * @param initial_references - Initial references from props
  */
 export function HazoChatProvider({
   children,
-  hazo_auth,
+  api_base_url = '/api/hazo_chat',
   initial_references = []
 }: HazoChatProviderProps) {
   const [state, dispatch] = useReducer(hazo_chat_reducer, {
@@ -184,16 +189,27 @@ export function HazoChatProvider({
   });
 
   // -------------------------------------------------------------------------
-  // Load current user on mount
+  // Load current user on mount via API
   // -------------------------------------------------------------------------
   useEffect(() => {
     async function load_current_user() {
       try {
-        const auth_user = await hazo_auth.hazo_get_auth();
-        if (auth_user) {
-          const profiles = await hazo_auth.hazo_get_user_profiles([auth_user.id]);
-          if (profiles.length > 0) {
-            dispatch({ type: 'SET_CURRENT_USER', payload: profiles[0] });
+        // Try to get current user from hazo_auth me endpoint
+        const response = await fetch('/api/hazo_auth/me');
+        
+        if (response.ok) {
+          const data = await response.json();
+          
+          if (data.authenticated && data.user) {
+            // Build user profile from response
+            const user_profile: HazoUserProfile = {
+              id: data.user.id,
+              name: data.user.name || data.user.email?.split('@')[0] || 'User',
+              email: data.user.email,
+              avatar_url: data.user.profile_picture_url
+            };
+            
+            dispatch({ type: 'SET_CURRENT_USER', payload: user_profile });
           }
         }
       } catch (error) {
@@ -206,7 +222,7 @@ export function HazoChatProvider({
     }
 
     load_current_user();
-  }, [hazo_auth]);
+  }, [api_base_url]);
 
   // -------------------------------------------------------------------------
   // Action creators
@@ -366,4 +382,3 @@ export function useHazoChatContext(): HazoChatContextValue {
 // ============================================================================
 
 export { HazoChatContext };
-

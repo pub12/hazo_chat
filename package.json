@@ -1,7 +1,7 @@
 {
   "name": "hazo_chat",
-  "version": "1.1.0",
-  "description": "Chat interface for 1-1 communication",
+  "version": "2.0.0",
+  "description": "Chat interface for 1-1 communication with API-first architecture",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -18,6 +18,14 @@
     "./components": {
       "import": "./dist/components/index.js",
       "types": "./dist/components/index.d.ts"
+    },
+    "./api": {
+      "import": "./dist/api/index.js",
+      "types": "./dist/api/index.d.ts"
+    },
+    "./api/messages": {
+      "import": "./dist/api/messages.js",
+      "types": "./dist/api/messages.d.ts"
     }
   },
   "files": [
@@ -45,7 +53,8 @@
     "chat",
     "interface",
     "react",
-    "typescript"
+    "typescript",
+    "nextjs"
   ],
   "author": "Pubs Abayasiri",
   "license": "MIT",
@@ -74,19 +83,20 @@
     "@types/node": "^20.10.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
+    "next": "^14.2.33",
     "typescript": "^5.3.0"
   },
   "peerDependencies": {
-    "hazo_auth": "^1.0.0",
     "hazo_connect": "^2.3.1",
+    "next": ">=14.0.0",
     "react": "^18.0.0",
     "react-dom": "^18.0.0"
   },
   "peerDependenciesMeta": {
-    "hazo_auth": {
-      "optional": false
-    },
     "hazo_connect": {
+      "optional": true
+    },
+    "next": {
       "optional": false
     }
   }

@@ -3,37 +3,19 @@
  * 
  * Contains all TypeScript interfaces and types used across the package
  * for props, messages, references, user profiles, and configuration.
+ * 
+ * This package uses an API-first architecture - all data access is done
+ * via fetch() calls to API endpoints, not direct database access.
  */
 
 import type { ReactNode } from 'react';
 
 // ============================================================================
-// External Service Types (Peer Dependencies)
+// User Profile Types
 // ============================================================================
 
 /**
- * Re-export HazoConnectAdapter from hazo_connect for convenience
- * Consumers should use getHazoConnectSingleton() or createHazoConnectFromEnv() 
- * from hazo_connect/nextjs/setup to create an adapter instance
- */
-export type { HazoConnectAdapter } from 'hazo_connect';
-
-/**
- * Legacy alias for backward compatibility
- * @deprecated Use HazoConnectAdapter instead
- */
-export type HazoConnectInstance = import('hazo_connect').HazoConnectAdapter;
-
-/**
- * Interface for hazo_auth authentication service
- */
-export interface HazoAuthInstance {
-  hazo_get_auth: () => Promise<HazoAuthUser | null>;
-  hazo_get_user_profiles: (user_ids: string[]) => Promise<HazoUserProfile[]>;
-}
-
-/**
- * Authenticated user from hazo_auth
+ * Authenticated user information
  */
 export interface HazoAuthUser {
   id: string;
@@ -41,7 +23,7 @@ export interface HazoAuthUser {
 }
 
 /**
- * User profile from hazo_auth
+ * User profile with display information
  */
 export interface HazoUserProfile {
   id: string;
@@ -178,20 +160,19 @@ export interface FileValidationResult {
 
 /**
  * Main HazoChat component props
+ * 
+ * This component uses API calls internally - no database adapters needed.
+ * Consumers must set up the required API routes (see SETUP_CHECKLIST.md).
  */
 export interface HazoChatProps {
-  /** hazo_connect adapter instance (required) - from getHazoConnectSingleton() or createHazoConnectFromEnv() */
-  hazo_connect: import('hazo_connect').HazoConnectAdapter;
-  /** hazo_auth authentication service (required) */
-  hazo_auth: HazoAuthInstance;
   /** UUID of the chat recipient (required) */
   receiver_user_id: string;
-  /** Path/bucket for uploaded documents (required) */
-  document_save_location: string;
-  /** Main field reference ID (optional) */
+  /** Main field reference ID for chat context grouping */
   reference_id?: string;
-  /** Reference type for the main reference */
+  /** Reference type for the main reference (default: 'chat') */
   reference_type?: string;
+  /** Base URL for API endpoints (default: '/api/hazo_chat') */
+  api_base_url?: string;
   /** Additional field references (optional) */
   additional_references?: ReferenceItem[];
   /** Timezone for timestamps (default: "GMT+10") */
@@ -213,6 +194,8 @@ export interface HazoChatHeaderProps {
   title?: string;
   subtitle?: string;
   on_close?: () => void;
+  on_refresh?: () => void;
+  is_refreshing?: boolean;
   on_toggle_sidebar?: () => void;
   is_sidebar_open?: boolean;
   className?: string;
@@ -431,4 +414,36 @@ export interface UploadConfig {
 export interface HazoChatConfig {
   chat: ChatConfig;
   uploads: UploadConfig;
+}
+
+// ============================================================================
+// API Response Types (for consumers building API routes)
+// ============================================================================
+
+/**
+ * Response from GET /api/hazo_chat/messages
+ */
+export interface MessagesApiResponse {
+  success: boolean;
+  messages?: ChatMessageDB[];
+  current_user_id?: string;
+  error?: string;
+}
+
+/**
+ * Response from POST /api/hazo_chat/messages
+ */
+export interface SendMessageApiResponse {
+  success: boolean;
+  message?: ChatMessageDB;
+  error?: string;
+}
+
+/**
+ * Response from /api/hazo_auth/profiles
+ */
+export interface ProfilesApiResponse {
+  success: boolean;
+  profiles?: HazoUserProfile[];
+  error?: string;
 }

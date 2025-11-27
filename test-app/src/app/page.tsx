@@ -49,6 +49,12 @@ import { ProfilePicMenu } from 'hazo_auth/components/layouts/shared/components/p
 import { use_auth_status } from 'hazo_auth/components/layouts/shared/hooks/use_auth_status';
 import { UserCombobox } from '@/components/user_combobox';
 import { Input } from '@/components/ui/input';
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from '@/components/ui/hover-card';
+import { IoMailOutline } from 'react-icons/io5';
 
 // ============================================================================
 // Demo Chat Component with Hardcoded Messages
@@ -185,7 +191,7 @@ interface UserProfile {
 // section: demo_chat_component
 function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: DemoChatProps) {
   const [selected_ref, set_selected_ref] = useState<string | null>(null);
-  const [is_preview_expanded, set_is_preview_expanded] = useState(true);
+  const [is_preview_expanded, set_is_preview_expanded] = useState(false);
   const [message_text, set_message_text] = useState('');
   const [is_sending, set_is_sending] = useState(false);
   const [chat_messages, set_chat_messages] = useState<ChatMessageFromDB[]>([]);
@@ -234,43 +240,44 @@ function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: 
     fetch_profiles();
   }, [current_user_id, receiver_user_id, user_profiles]);
 
-  // Fetch chat history on mount or when props change
-  useEffect(() => {
-    async function fetch_chat_history() {
-      if (!receiver_user_id) {
-        set_chat_messages([]);
-        return;
-      }
-
-      set_is_loading(true);
-      try {
-        const params = new URLSearchParams({
-          receiver_user_id,
-          ...(reference_id && { reference_id }),
-          ...(reference_type && { reference_type }),
-        });
-
-        const response = await fetch(`/api/hazo_chat/messages?${params.toString()}`);
-        const data = await response.json();
-
-        if (data.success) {
-          set_chat_messages(data.messages || []);
-          set_current_user_id(data.current_user_id || '');
-          console.log('Chat history loaded:', data.messages?.length || 0, 'messages');
-        } else {
-          console.error('Failed to fetch chat history:', data.error);
-          set_chat_messages([]);
-        }
-      } catch (error) {
-        console.error('Error fetching chat history:', error);
-        set_chat_messages([]);
-      } finally {
-        set_is_loading(false);
-      }
+  // Fetch chat history function (extracted for manual refresh)
+  const fetch_chat_history = useCallback(async () => {
+    if (!receiver_user_id) {
+      set_chat_messages([]);
+      return;
     }
 
-    fetch_chat_history();
+    set_is_loading(true);
+    try {
+      const params = new URLSearchParams({
+        receiver_user_id,
+        ...(reference_id && { reference_id }),
+        ...(reference_type && { reference_type }),
+      });
+
+      const response = await fetch(`/api/hazo_chat/messages?${params.toString()}`);
+      const data = await response.json();
+
+      if (data.success) {
+        set_chat_messages(data.messages || []);
+        set_current_user_id(data.current_user_id || '');
+        console.log('Chat history loaded:', data.messages?.length || 0, 'messages');
+      } else {
+        console.error('Failed to fetch chat history:', data.error);
+        set_chat_messages([]);
+      }
+    } catch (error) {
+      console.error('Error fetching chat history:', error);
+      set_chat_messages([]);
+    } finally {
+      set_is_loading(false);
+    }
   }, [receiver_user_id, reference_id, reference_type]);
+
+  // Fetch chat history on mount or when props change
+  useEffect(() => {
+    fetch_chat_history();
+  }, [fetch_chat_history]);
 
   // Helper function to get initials from name
   const get_initials = (name: string): string => {
@@ -350,17 +357,31 @@ function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: 
           <h2 className="text-sm font-semibold tracking-tight text-foreground">Chat with Sarah</h2>
           <p className="text-xs font-medium text-muted-foreground">Project Discussion</p>
         </div>
-        {on_close && (
+        <div className="flex items-center gap-1">
+          {/* Refresh button */}
           <Button
             variant="ghost"
             size="icon"
-            onClick={on_close}
-            className="h-8 w-8 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-            aria-label="Close chat"
+            onClick={fetch_chat_history}
+            disabled={is_loading}
+            className="h-8 w-8 rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            aria-label="Refresh chat history"
           >
-            <IoClose className="h-4 w-4" />
+            <IoRefresh className={`h-4 w-4 ${is_loading ? 'animate-spin' : ''}`} />
           </Button>
-        )}
+          {/* Close button */}
+          {on_close && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={on_close}
+              className="h-8 w-8 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+              aria-label="Close chat"
+            >
+              <IoClose className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Row 2: References */}
@@ -464,22 +485,58 @@ function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: 
                 key={msg.id}
                 className={`flex items-end gap-2 ${is_me ? 'flex-row-reverse' : ''}`}
               >
-                {/* Avatar */}
-                {avatar_url ? (
-                  <img
-                    src={avatar_url}
-                    alt={`${sender_name}'s profile picture`}
-                    className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-                  />
-                ) : (
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 ${
-                    is_me 
-                      ? 'bg-primary/20 text-primary' 
-                      : 'bg-muted text-muted-foreground'
-                  }`}>
-                    {initials}
-                  </div>
-                )}
+                {/* Avatar with HoverCard */}
+                <HoverCard>
+                  <HoverCardTrigger asChild>
+                    <button className="focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-full">
+                      {avatar_url ? (
+                        <img
+                          src={avatar_url}
+                          alt={`${sender_name}'s profile picture`}
+                          className="w-8 h-8 rounded-full object-cover flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                        />
+                      ) : (
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity ${
+                          is_me 
+                            ? 'bg-primary/20 text-primary' 
+                            : 'bg-muted text-muted-foreground'
+                        }`}>
+                          {initials}
+                        </div>
+                      )}
+                    </button>
+                  </HoverCardTrigger>
+                  <HoverCardContent className="w-72" side={is_me ? 'left' : 'right'} align="start">
+                    <div className="flex gap-4">
+                      {/* Larger profile picture */}
+                      {avatar_url ? (
+                        <img
+                          src={avatar_url}
+                          alt={`${sender_name}'s profile picture`}
+                          className="w-16 h-16 rounded-full object-cover flex-shrink-0"
+                        />
+                      ) : (
+                        <div className={`w-16 h-16 rounded-full flex items-center justify-center text-xl font-semibold flex-shrink-0 ${
+                          is_me 
+                            ? 'bg-primary/20 text-primary' 
+                            : 'bg-muted text-muted-foreground'
+                        }`}>
+                          {initials}
+                        </div>
+                      )}
+                      {/* User info */}
+                      <div className="flex flex-col justify-center gap-1 min-w-0">
+                        <h4 className="text-sm font-semibold truncate">{sender_name}</h4>
+                        {sender_profile?.email && (
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <IoMailOutline className="h-3.5 w-3.5 flex-shrink-0" />
+                            <span className="truncate">{sender_profile.email}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </HoverCardContent>
+                </HoverCard>
 
                 {/* Message bubble */}
                 <div className={`max-w-[70%] flex flex-col ${is_me ? 'items-end' : 'items-start'}`}>

@@ -4,14 +4,15 @@
  * Main chat UI component with:
  * - Responsive grid layout (sidebar + chat area)
  * - Context provider for shared state
- * - Integration with hazo_connect, hazo_auth
  * - Document viewer and reference list
  * - Message polling and pagination
+ * 
+ * Uses API calls internally - no server-side dependencies required.
  */
 
 'use client';
 
-import React, { useCallback, useMemo, useEffect } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { cn } from '../../lib/utils.js';
 import type {
   HazoChatProps,
@@ -43,17 +44,26 @@ import { useFileUpload } from '../../hooks/use_file_upload.js';
 // Inner Component (uses context)
 // ============================================================================
 
-interface HazoChatInnerProps extends Omit<HazoChatProps, 'hazo_auth'> {
+interface HazoChatInnerProps {
+  receiver_user_id: string;
+  reference_id?: string;
+  reference_type?: string;
+  api_base_url?: string;
+  additional_references?: ChatReferenceItem[];
+  timezone?: string;
+  title?: string;
+  subtitle?: string;
+  on_close?: () => void;
+  className?: string;
   polling_interval?: number;
   messages_per_page?: number;
 }
 
 function HazoChatInner({
-  hazo_connect,
   receiver_user_id,
-  document_save_location,
-  reference_id,
+  reference_id = '',
   reference_type = 'chat',
+  api_base_url = '/api/hazo_chat',
   additional_references = [],
   timezone = DEFAULT_TIMEZONE,
   title,
@@ -81,7 +91,7 @@ function HazoChatInner({
   } = useHazoChatContext();
 
   // -------------------------------------------------------------------------
-  // Messages hook
+  // Messages hook (uses API calls)
   // -------------------------------------------------------------------------
   const {
     messages,
@@ -90,12 +100,13 @@ function HazoChatInner({
     load_more,
     send_message,
     delete_message,
-    polling_status
+    polling_status,
+    refresh: refresh_messages
   } = useChatMessages({
-    hazo_connect,
-    hazo_auth: { hazo_get_auth: async () => current_user ? { id: current_user.id } : null, hazo_get_user_profiles: async () => [] },
-    reference_id,
     receiver_user_id,
+    reference_id,
+    reference_type,
+    api_base_url,
     polling_interval,
     messages_per_page
   });
@@ -105,8 +116,7 @@ function HazoChatInner({
   // -------------------------------------------------------------------------
   const {
     references,
-    select_reference,
-    get_message_for_reference
+    select_reference
   } = useChatReferences({
     messages,
     initial_references: additional_references.map((ref) => ({
@@ -133,7 +143,7 @@ function HazoChatInner({
     upload_all,
     is_uploading
   } = useFileUpload({
-    upload_location: document_save_location
+    upload_location: `${api_base_url}/uploads`
   });
 
   // -------------------------------------------------------------------------
@@ -141,7 +151,7 @@ function HazoChatInner({
   // -------------------------------------------------------------------------
   const handle_send = useCallback(
     async (text: string, attachments: UploadedFile[]) => {
-      if (!current_user || !reference_id) return;
+      if (!current_user) return;
 
       // Upload pending files first
       const uploaded = await upload_all();
@@ -161,7 +171,7 @@ function HazoChatInner({
       }));
 
       const payload: CreateMessagePayload = {
-        reference_id,
+        reference_id: reference_id || '',
         reference_type,
         receiver_user_id,
         message_text: text,
@@ -239,6 +249,8 @@ function HazoChatInner({
         title={title}
         subtitle={subtitle}
         on_close={on_close}
+        on_refresh={refresh_messages}
+        is_refreshing={is_loading_messages}
         on_toggle_sidebar={toggle_sidebar}
         is_sidebar_open={is_sidebar_open}
       />
@@ -324,11 +336,29 @@ function HazoChatInner({
 // Main Component (with Provider)
 // ============================================================================
 
+/**
+ * HazoChat - Main chat component
+ * 
+ * Uses API calls internally for all data operations.
+ * Requires the following API routes to be set up:
+ * - GET/POST /api/hazo_chat/messages
+ * - GET /api/hazo_auth/me
+ * - POST /api/hazo_auth/profiles
+ * 
+ * See SETUP_CHECKLIST.md for detailed setup instructions.
+ */
 export function HazoChat(props: HazoChatProps) {
   const {
-    hazo_auth,
+    receiver_user_id,
+    reference_id,
+    reference_type = 'chat',
+    api_base_url = '/api/hazo_chat',
     additional_references = [],
-    ...inner_props
+    timezone = DEFAULT_TIMEZONE,
+    title,
+    subtitle,
+    on_close,
+    className
   } = props;
 
   // Convert ReferenceItem[] to ChatReferenceItem[]
@@ -344,12 +374,20 @@ export function HazoChat(props: HazoChatProps) {
   return (
     <TooltipProvider>
       <HazoChatProvider
-        hazo_auth={hazo_auth}
+        api_base_url={api_base_url}
         initial_references={initial_refs}
       >
         <HazoChatInner
-          {...inner_props}
-          additional_references={additional_references}
+          receiver_user_id={receiver_user_id}
+          reference_id={reference_id}
+          reference_type={reference_type}
+          api_base_url={api_base_url}
+          additional_references={initial_refs}
+          timezone={timezone}
+          title={title}
+          subtitle={subtitle}
+          on_close={on_close}
+          className={className}
         />
       </HazoChatProvider>
     </TooltipProvider>
@@ -357,4 +395,3 @@ export function HazoChat(props: HazoChatProps) {
 }
 
 HazoChat.displayName = 'HazoChat';
-

@@ -12,7 +12,7 @@
 'use client';
 
 import React from 'react';
-import { IoClose, IoMenuOutline } from 'react-icons/io5';
+import { IoClose, IoMenuOutline, IoRefresh } from 'react-icons/io5';
 import { cn } from '../../lib/utils.js';
 import type { HazoChatHeaderProps } from '../../types/index.js';
 import { Button } from '../ui/button.js';
@@ -30,6 +30,8 @@ export function HazoChatHeader({
   title,
   subtitle,
   on_close,
+  on_refresh,
+  is_refreshing,
   on_toggle_sidebar,
   is_sidebar_open,
   className
@@ -89,31 +91,61 @@ export function HazoChatHeader({
         </div>
       </div>
 
-      {/* Right: Close button */}
-      {on_close && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={on_close}
-              className={cn(
-                'cls_header_close',
-                'h-8 w-8 rounded-md',
-                'text-muted-foreground',
-                'hover:bg-destructive/10 hover:text-destructive',
-                'transition-colors'
-              )}
-              aria-label="Close chat"
-            >
-              <IoClose className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" className="text-xs">
-            Close chat
-          </TooltipContent>
-        </Tooltip>
-      )}
+      {/* Right: Refresh + Close buttons */}
+      <div className="cls_header_right flex items-center gap-1">
+        {/* Refresh button */}
+        {on_refresh && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={on_refresh}
+                disabled={is_refreshing}
+                className={cn(
+                  'cls_header_refresh',
+                  'h-8 w-8 rounded-md',
+                  'text-muted-foreground',
+                  'hover:bg-accent hover:text-accent-foreground',
+                  'transition-colors'
+                )}
+                aria-label="Refresh chat history"
+              >
+                <IoRefresh className={cn('h-4 w-4', is_refreshing && 'animate-spin')} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="text-xs">
+              Refresh chat
+            </TooltipContent>
+          </Tooltip>
+        )}
+
+        {/* Close button */}
+        {on_close && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={on_close}
+                className={cn(
+                  'cls_header_close',
+                  'h-8 w-8 rounded-md',
+                  'text-muted-foreground',
+                  'hover:bg-destructive/10 hover:text-destructive',
+                  'transition-colors'
+                )}
+                aria-label="Close chat"
+              >
+                <IoClose className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="text-xs">
+              Close chat
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </div>
     </header>
   );
 }

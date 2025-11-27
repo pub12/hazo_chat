@@ -2,6 +2,8 @@
 
 A full-featured React chat component library for 1-1 communication with document sharing, file attachments, and real-time messaging capabilities.
 
+**Version 2.0** - Now with API-first architecture! No server-side dependencies in client components.
+
 ## Features
 
 - 📱 **Responsive Design** - Works on desktop and mobile with adaptive layout
@@ -13,107 +15,133 @@ A full-featured React chat component library for 1-1 communication with document
 - ✅ **Read Receipts** - Track message read status
 - 🗑️ **Soft Delete** - Delete messages with undo capability
 - 🎨 **Customizable** - TailwindCSS-based theming
+- 🚀 **API-First** - No server-side dependencies in client components
 
 ## Table of Contents
 
 - [Installation](#installation)
 - [Quick Start](#quick-start)
-- [Prerequisites](#prerequisites)
-- [Main Component](#main-component)
+- [API Routes Setup](#api-routes-setup)
 - [Props Reference](#props-reference)
 - [Hooks](#hooks)
 - [Types](#types)
 - [Database Schema](#database-schema)
 - [Configuration](#configuration)
+- [Migration from v1.x](#migration-from-v1x)
 - [Development](#development)
 - [License](#license)
 
 ## Installation
 
 ```bash
-npm install hazo_chat hazo_connect hazo_auth
+npm install hazo_chat hazo_connect next
 ```
 
 ## Quick Start
+
+### Step 1: Create API Routes
+
+The component communicates via API calls. Create the required endpoints:
+
+```typescript
+// app/api/hazo_chat/messages/route.ts
+import { createMessagesHandler } from 'hazo_chat/api';
+import { getHazoConnectSingleton } from 'hazo_connect/nextjs/setup';
+
+export const dynamic = 'force-dynamic';
+
+const { GET, POST } = createMessagesHandler({
+  getHazoConnect: () => getHazoConnectSingleton()
+});
+
+export { GET, POST };
+```
+
+### Step 2: Use the Component
 
 ```tsx
 'use client';
 
 import { HazoChat } from 'hazo_chat';
-import { getHazoConnectSingleton } from 'hazo_connect/nextjs/setup';
 
-// Create hazo_auth service wrapper
-const hazo_auth = {
-  hazo_get_auth: async () => {
-    const response = await fetch('/api/hazo_auth/me');
-    const data = await response.json();
-    return data.is_authenticated ? { id: data.user_id, email: data.email } : null;
-  },
-  hazo_get_user_profiles: async (user_ids: string[]) => {
-    const response = await fetch('/api/hazo_auth/profiles', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_ids }),
-    });
-    const data = await response.json();
-    return data.profiles;
-  },
-};
-
-function ChatPage() {
-  const hazo_connect = getHazoConnectSingleton();
-  
+export default function ChatPage() {
   return (
-    <HazoChat
-      hazo_connect={hazo_connect}
-      hazo_auth={hazo_auth}
-      receiver_user_id="recipient-uuid"
-      document_save_location="/uploads/chat"
-      reference_id="conversation-123"
-      reference_type="support"
-      title="Chat with Support"
-      subtitle="We're here to help"
-    />
+    <div className="h-screen">
+      <HazoChat
+        receiver_user_id="recipient-uuid"
+        reference_id="conversation-123"
+        reference_type="support"
+        title="Chat with Support"
+        subtitle="We're here to help"
+      />
+    </div>
   );
 }
 ```
 
-## Prerequisites
+That's it! No need to pass database adapters or authentication services - everything works via API calls.
 
-### Peer Dependencies
+## API Routes Setup
 
-| Package | Version | Description |
-|---------|---------|-------------|
-| `hazo_connect` | ^2.3.1 | Database adapter (required) |
-| `hazo_auth` | ^1.0.0 | Authentication service (required) |
-| `react` | ^18.0.0 | React framework |
-| `react-dom` | ^18.0.0 | React DOM |
+hazo_chat requires these API endpoints:
 
-### Required Setup
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/hazo_chat/messages` | GET | Fetch chat messages |
+| `/api/hazo_chat/messages` | POST | Send a new message |
+| `/api/hazo_auth/me` | GET | Get current authenticated user |
+| `/api/hazo_auth/profiles` | POST | Fetch user profiles by IDs |
 
-1. **Database** - SQLite or PostgreSQL with the `hazo_chat` table
-2. **Authentication** - Working hazo_auth setup with user management
-3. **API Routes** - Backend endpoints for chat operations
-4. **Configuration Files** - hazo_connect_config.ini for database connection
+### Using Exportable Handlers (Recommended)
 
-See [SETUP_CHECKLIST.md](./SETUP_CHECKLIST.md) for detailed setup instructions.
+```typescript
+// app/api/hazo_chat/messages/route.ts
+import { createMessagesHandler } from 'hazo_chat/api';
+import { getHazoConnectSingleton } from 'hazo_connect/nextjs/setup';
 
-## Main Component
+export const dynamic = 'force-dynamic';
 
-### HazoChat
+const { GET, POST } = createMessagesHandler({
+  getHazoConnect: () => getHazoConnectSingleton(),
+  // Optional: custom authentication
+  getUserIdFromRequest: async (request) => {
+    // Return user ID from your auth system
+    return request.cookies.get('user_id')?.value || null;
+  }
+});
 
-The primary component that provides a complete chat interface.
+export { GET, POST };
+```
+
+### Custom Implementation
+
+If you need more control, implement the endpoints manually. See [SETUP_CHECKLIST.md](./SETUP_CHECKLIST.md) for detailed examples.
+
+## Props Reference
+
+### HazoChatProps
+
+| Prop | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `receiver_user_id` | `string` | ✅ | - | UUID of the chat recipient |
+| `reference_id` | `string` | ❌ | - | Reference ID for chat context grouping |
+| `reference_type` | `string` | ❌ | `'chat'` | Type of reference |
+| `api_base_url` | `string` | ❌ | `'/api/hazo_chat'` | Base URL for API endpoints |
+| `additional_references` | `ReferenceItem[]` | ❌ | `[]` | Pre-loaded document references |
+| `timezone` | `string` | ❌ | `'GMT+10'` | Timezone for timestamps |
+| `title` | `string` | ❌ | - | Chat header title |
+| `subtitle` | `string` | ❌ | - | Chat header subtitle |
+| `on_close` | `() => void` | ❌ | - | Close button callback |
+| `className` | `string` | ❌ | - | Additional CSS classes |
+
+### Example with All Props
 
 ```tsx
-import { HazoChat } from 'hazo_chat';
-
 <HazoChat
-  hazo_connect={adapter}
-  hazo_auth={authService}
   receiver_user_id="user-123"
-  document_save_location="/uploads"
   reference_id="project-456"
   reference_type="project_chat"
+  api_base_url="/api/hazo_chat"
   timezone="Australia/Sydney"
   title="Project Discussion"
   subtitle="Design Review"
@@ -123,46 +151,6 @@ import { HazoChat } from 'hazo_chat';
   on_close={() => console.log('Chat closed')}
   className="h-[600px]"
 />
-```
-
-## Props Reference
-
-### HazoChatProps
-
-| Prop | Type | Required | Default | Description |
-|------|------|----------|---------|-------------|
-| `hazo_connect` | `HazoConnectAdapter` | ✅ | - | Database adapter instance |
-| `hazo_auth` | `HazoAuthInstance` | ✅ | - | Authentication service |
-| `receiver_user_id` | `string` | ✅ | - | UUID of the chat recipient |
-| `document_save_location` | `string` | ✅ | - | Path for uploaded documents |
-| `reference_id` | `string` | ❌ | - | Main reference ID for the chat |
-| `reference_type` | `string` | ❌ | `'chat'` | Type of reference |
-| `additional_references` | `ReferenceItem[]` | ❌ | `[]` | Pre-loaded document references |
-| `timezone` | `string` | ❌ | `'GMT+10'` | Timezone for timestamps |
-| `title` | `string` | ❌ | - | Chat header title |
-| `subtitle` | `string` | ❌ | - | Chat header subtitle |
-| `on_close` | `() => void` | ❌ | - | Close button callback |
-| `className` | `string` | ❌ | - | Additional CSS classes |
-
-### HazoAuthInstance
-
-The authentication service must implement these methods:
-
-```typescript
-interface HazoAuthInstance {
-  /** Get current authenticated user */
-  hazo_get_auth: () => Promise<{ id: string; email?: string } | null>;
-  
-  /** Get user profiles by IDs */
-  hazo_get_user_profiles: (user_ids: string[]) => Promise<HazoUserProfile[]>;
-}
-
-interface HazoUserProfile {
-  id: string;
-  name: string;
-  email?: string;
-  avatar_url?: string;
-}
 ```
 
 ## Hooks
@@ -187,10 +175,10 @@ const {
   mark_as_read,       // (message_id) => Promise<void>
   refresh,            // () => void - Reload messages
 } = useChatMessages({
-  hazo_connect,
-  hazo_auth,
-  reference_id: 'chat-123',
   receiver_user_id: 'user-456',
+  reference_id: 'chat-123',
+  reference_type: 'direct',
+  api_base_url: '/api/hazo_chat',
   polling_interval: 5000,    // Optional, default: 5000ms
   messages_per_page: 20,     // Optional, default: 20
 });
@@ -233,10 +221,9 @@ const {
   is_uploading,         // boolean
   validation_errors,    // string[]
 } = useFileUpload({
-  upload_location: '/uploads/chat',
+  upload_location: '/api/hazo_chat/uploads',
   max_file_size_mb: 10,                  // Optional, default: 10
   allowed_types: ['pdf', 'png', 'jpg'],  // Optional
-  upload_function: customUploader,        // Optional custom uploader
 });
 ```
 
@@ -264,6 +251,17 @@ interface ChatMessage {
 }
 ```
 
+### HazoUserProfile
+
+```typescript
+interface HazoUserProfile {
+  id: string;
+  name: string;
+  email?: string;
+  avatar_url?: string;
+}
+```
+
 ### ChatReferenceItem
 
 ```typescript
@@ -276,18 +274,6 @@ interface ChatReferenceItem {
   mime_type?: string;
   file_size?: number;
   message_id?: string;
-}
-```
-
-### CreateMessagePayload
-
-```typescript
-interface CreateMessagePayload {
-  reference_id: string;
-  reference_type: string;
-  receiver_user_id: string;
-  message_text: string;
-  reference_list?: ChatReferenceItem[];
 }
 ```
 
@@ -307,11 +293,7 @@ CREATE TABLE hazo_chat (
   read_at TEXT,
   deleted_at TEXT,
   created_at TEXT NOT NULL,
-  changed_at TEXT NOT NULL,
-  
-  -- Foreign keys (if using referential integrity)
-  FOREIGN KEY (sender_user_id) REFERENCES hazo_users(id),
-  FOREIGN KEY (receiver_user_id) REFERENCES hazo_users(id)
+  changed_at TEXT NOT NULL
 );
 
 -- Indexes for performance
@@ -341,14 +323,56 @@ max_file_size_mb = 10
 allowed_types = pdf,png,jpg,jpeg,gif,txt,doc,docx
 ```
 
-### Default Values
+## Migration from v1.x
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `polling_interval` | 5000ms | How often to check for new messages |
-| `messages_per_page` | 20 | Messages loaded per pagination request |
-| `max_file_size_mb` | 10 | Maximum upload file size |
-| `timezone` | 'GMT+10' | Default timezone for timestamps |
+Version 2.0 introduces breaking changes for a simpler, more reliable architecture.
+
+### What Changed
+
+| v1.x | v2.x |
+|------|------|
+| Pass `hazo_connect` prop | Not needed - uses API calls |
+| Pass `hazo_auth` prop | Not needed - uses API calls |
+| Pass `document_save_location` prop | Not needed |
+| Direct database access | API-based data access |
+
+### Migration Steps
+
+1. **Remove adapter props:**
+
+```tsx
+// Before (v1.x)
+<HazoChat
+  hazo_connect={adapter}
+  hazo_auth={authService}
+  document_save_location="/uploads"
+  receiver_user_id="..."
+/>
+
+// After (v2.x)
+<HazoChat
+  receiver_user_id="..."
+/>
+```
+
+2. **Create API routes** (see [API Routes Setup](#api-routes-setup))
+
+3. **Update imports:**
+
+```typescript
+// The API handler factory is new
+import { createMessagesHandler } from 'hazo_chat/api';
+```
+
+### Why the Change?
+
+The v1.x architecture required passing server-side adapters (`hazo_connect`, `hazo_auth`) to client components. This caused issues:
+
+- "Module not found: Can't resolve 'fs'" errors
+- Hydration mismatches
+- Complex webpack configuration
+
+The v2.x API-first architecture solves these by keeping all server code in API routes.
 
 ## Development
 
@@ -372,30 +396,17 @@ npm run dev:test-app
 npm run build:test-app
 ```
 
-### Project Structure
-
-```
-hazo_chat/
-├── src/
-│   ├── components/
-│   │   ├── hazo_chat/        # Main chat components
-│   │   └── ui/               # Reusable UI components
-│   ├── hooks/                # React hooks
-│   ├── lib/                  # Utilities and constants
-│   └── types/                # TypeScript definitions
-├── test-app/                 # Next.js test application
-├── dist/                     # Compiled output (git-ignored)
-└── package.json
-```
-
 ### Package Exports
 
 ```typescript
 // Main export
 import { HazoChat, useChatMessages, useChatReferences, useFileUpload } from 'hazo_chat';
 
+// API handlers (for server-side routes)
+import { createMessagesHandler } from 'hazo_chat/api';
+
 // Components only
-import { HazoChat, ChatBubble, ChatInput } from 'hazo_chat/components';
+import { HazoChat, ChatBubble } from 'hazo_chat/components';
 
 // Library utilities
 import { DEFAULT_POLLING_INTERVAL, MIME_TYPE_MAP } from 'hazo_chat/lib';
@@ -405,22 +416,20 @@ import { DEFAULT_POLLING_INTERVAL, MIME_TYPE_MAP } from 'hazo_chat/lib';
 
 ### Common Issues
 
-1. **"hazo_connect.from is not a function"**
-   - Ensure you're using `getHazoConnectSingleton()` from `hazo_connect/nextjs/setup`
-   - The adapter must be the HazoConnectAdapter type, not a raw connection
+1. **"Module not found: Can't resolve 'fs'"**
+   - This shouldn't happen in v2.x. If it does, ensure you're not importing from `hazo_connect/server` in client components.
 
-2. **Hydration errors**
-   - Wrap client components in Suspense boundaries
-   - Use `mounted` state to delay client-side rendering
+2. **Messages not loading**
+   - Check that API routes exist and return correct responses
+   - Verify authentication (check `/api/hazo_auth/me`)
+   - Check browser console and network tab for errors
 
-3. **Module not found errors**
-   - Add transpilePackages in next.config.js: `['hazo_chat', 'hazo_connect', 'hazo_auth']`
-   - Check webpack aliases for hazo_auth imports
+3. **401 Unauthorized errors**
+   - Ensure the user is logged in
+   - Check that `hazo_auth_user_id` cookie is set
 
-4. **Messages not loading**
-   - Verify database connection in hazo_connect_config.ini
-   - Check API route `/api/hazo_chat/messages` exists and works
-   - Ensure `reference_id` is provided to the component
+4. **CORS errors**
+   - API routes should be on the same domain as the frontend
 
 ## Related Packages
 
