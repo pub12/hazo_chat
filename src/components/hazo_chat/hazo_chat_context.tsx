@@ -204,10 +204,12 @@ export function HazoChatProvider({
           
           if (data.authenticated && data.user) {
             // Build user profile from response
+            // Support both email_address (hazo_auth standard) and email (legacy)
+            const email = data.user.email_address || data.user.email || '';
             const user_profile: HazoUserProfile = {
               id: data.user.id,
-              name: data.user.name || data.user.email?.split('@')[0] || 'User',
-              email: data.user.email,
+              name: data.user.name || (email ? email.split('@')[0] : 'User'),
+              email: email,
               avatar_url: data.user.profile_picture_url
             };
             

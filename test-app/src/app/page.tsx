@@ -8,7 +8,7 @@
 'use client';
 
 // section: imports
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
@@ -198,6 +198,7 @@ function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: 
   const [current_user_id, set_current_user_id] = useState<string>('');
   const [is_loading, set_is_loading] = useState(false);
   const [user_profiles, set_user_profiles] = useState<Map<string, UserProfile>>(new Map());
+  const messages_container_ref = useRef<HTMLDivElement>(null);
 
   // Fetch user profiles for current user and receiver
   useEffect(() => {
@@ -262,6 +263,13 @@ function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: 
         set_chat_messages(data.messages || []);
         set_current_user_id(data.current_user_id || '');
         console.log('Chat history loaded:', data.messages?.length || 0, 'messages');
+        
+        // Scroll to bottom after refresh
+        setTimeout(() => {
+          if (messages_container_ref.current) {
+            messages_container_ref.current.scrollTop = messages_container_ref.current.scrollHeight;
+          }
+        }, 150);
       } else {
         console.error('Failed to fetch chat history:', data.error);
         set_chat_messages([]);
@@ -278,6 +286,19 @@ function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: 
   useEffect(() => {
     fetch_chat_history();
   }, [fetch_chat_history]);
+
+  // Auto-scroll to bottom when messages change (handles polling, new messages)
+  // Note: Refresh button also has explicit scroll in fetch_chat_history
+  useEffect(() => {
+    if (messages_container_ref.current && chat_messages.length > 0 && !is_loading) {
+      // Use setTimeout to ensure DOM has updated
+      setTimeout(() => {
+        if (messages_container_ref.current) {
+          messages_container_ref.current.scrollTop = messages_container_ref.current.scrollHeight;
+        }
+      }, 100);
+    }
+  }, [chat_messages.length, is_loading]);
 
   // Helper function to get initials from name
   const get_initials = (name: string): string => {
@@ -329,6 +350,13 @@ function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: 
         set_chat_messages(prev => [...prev, new_message]);
         set_message_text('');
         console.log('Message sent successfully:', data.message);
+        
+        // Scroll to bottom after message is sent
+        setTimeout(() => {
+          if (messages_container_ref.current) {
+            messages_container_ref.current.scrollTop = messages_container_ref.current.scrollHeight;
+          }
+        }, 100);
       } else {
         console.error('Failed to send message:', data.error);
         alert(`Failed to send message: ${data.error}`);
@@ -446,7 +474,10 @@ function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: 
         </Button>
 
         {/* Chat messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div 
+          ref={messages_container_ref}
+          className="flex-1 overflow-y-auto p-4 space-y-4"
+        >
           {/* Loading state */}
           {is_loading && (
             <div className="flex items-center justify-center h-full">
