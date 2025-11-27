@@ -202,18 +202,27 @@ export function HazoChatProvider({
         if (response.ok) {
           const data = await response.json();
           
-          if (data.authenticated && data.user) {
-            // Build user profile from response
+          if (data.authenticated) {
+            // Handle two different response structures:
+            // Structure 1 (with nested user object): { authenticated: true, user: { id, email_address, ... } }
+            // Structure 2 (flat): { authenticated: true, user_id, email, name, ... }
+            const user_data = data.user || data;
+            const user_id = user_data.id || data.user_id || '';
             // Support both email_address (hazo_auth standard) and email (legacy)
-            const email = data.user.email_address || data.user.email || '';
-            const user_profile: HazoUserProfile = {
-              id: data.user.id,
-              name: data.user.name || (email ? email.split('@')[0] : 'User'),
-              email: email,
-              avatar_url: data.user.profile_picture_url
-            };
+            const email = user_data.email_address || user_data.email || data.email || '';
+            const name = user_data.name || data.name || '';
+            const profile_picture_url = user_data.profile_picture_url || data.profile_picture_url;
             
-            dispatch({ type: 'SET_CURRENT_USER', payload: user_profile });
+            if (user_id) {
+              const user_profile: HazoUserProfile = {
+                id: user_id,
+                name: name || (email ? email.split('@')[0] : 'User'),
+                email: email,
+                avatar_url: profile_picture_url
+              };
+              
+              dispatch({ type: 'SET_CURRENT_USER', payload: user_profile });
+            }
           }
         }
       } catch (error) {
