@@ -7,9 +7,9 @@ A full-featured React chat component library for 1-1 communication with document
 ## Features
 
 - 📱 **Responsive Design** - Works on desktop and mobile with adaptive layout
-- 💬 **Real-time Messaging** - Polling-based message updates with optimistic UI
+- 💬 **Real-time Messaging** - Polling or manual refresh modes for message updates with optimistic UI
 - 📎 **File Attachments** - Support for documents and images with preview
-- 📄 **Document Viewer** - Built-in PDF and image viewer
+- 📄 **Document Viewer** - Built-in PDF and image viewer with expand/collapse toggle
 - 👤 **User Profiles** - Avatar display and user information
 - 🔄 **Infinite Scroll** - Cursor-based pagination for message history
 - ✅ **Read Receipts** - Track message read status
@@ -127,6 +127,9 @@ If you need more control, implement the endpoints manually. See [SETUP_CHECKLIST
 | `reference_id` | `string` | ❌ | - | Reference ID for chat context grouping |
 | `reference_type` | `string` | ❌ | `'chat'` | Type of reference |
 | `api_base_url` | `string` | ❌ | `'/api/hazo_chat'` | Base URL for API endpoints |
+| `realtime_mode` | `'polling' \| 'manual'` | ❌ | `'polling'` | Real-time update mode: `'polling'` (automatic) or `'manual'` (refresh only) |
+| `polling_interval` | `number` | ❌ | `5000` | Polling interval in ms (only used when `realtime_mode = 'polling'`) |
+| `messages_per_page` | `number` | ❌ | `20` | Number of messages per page for pagination |
 | `additional_references` | `ReferenceItem[]` | ❌ | `[]` | Pre-loaded document references |
 | `timezone` | `string` | ❌ | `'GMT+10'` | Timezone for timestamps |
 | `title` | `string` | ❌ | - | Chat header title |
@@ -142,6 +145,8 @@ If you need more control, implement the endpoints manually. See [SETUP_CHECKLIST
   reference_id="project-456"
   reference_type="project_chat"
   api_base_url="/api/hazo_chat"
+  realtime_mode="polling"        // or "manual" for refresh-only updates
+  polling_interval={5000}         // only used when realtime_mode = "polling"
   timezone="Australia/Sydney"
   title="Project Discussion"
   subtitle="Design Review"
@@ -179,8 +184,9 @@ const {
   reference_id: 'chat-123',
   reference_type: 'direct',
   api_base_url: '/api/hazo_chat',
-  polling_interval: 5000,    // Optional, default: 5000ms
-  messages_per_page: 20,     // Optional, default: 20
+  realtime_mode: 'polling',   // Optional: 'polling' (automatic) or 'manual' (refresh only), default: 'polling'
+  polling_interval: 5000,      // Optional, default: 5000ms (only used when realtime_mode = 'polling')
+  messages_per_page: 20,       // Optional, default: 20
 });
 ```
 
@@ -303,13 +309,56 @@ CREATE INDEX idx_hazo_chat_receiver ON hazo_chat(receiver_user_id);
 CREATE INDEX idx_hazo_chat_created ON hazo_chat(created_at);
 ```
 
+## UI Behavior & Responsive Design
+
+### Hamburger Menu Button
+
+The hamburger menu button (☰) appears in the chat header **only on mobile devices** (screens < 768px wide) and is used to toggle the document viewer sidebar.
+
+**Desktop Behavior:**
+- The hamburger button is **hidden** (`md:hidden` class)
+- The document viewer is always visible as a left column
+- Use the expand/collapse toggle button (chevron) between the document viewer and chat area to show/hide the document viewer
+
+**Mobile Behavior:**
+- The hamburger button is **visible** to toggle the document viewer overlay
+- The document viewer slides in from the left as an overlay when opened
+- Click the hamburger button or backdrop to toggle the sidebar
+
+**Important:** If you see the hamburger button on desktop, it may indicate:
+1. TailwindCSS classes are not being compiled correctly in your project
+2. The `md:` breakpoint utilities are not available in your Tailwind config
+3. Ensure `tailwindcss` is properly installed and configured in your consuming project
+
+### Document Viewer Toggle
+
+The document viewer column can be collapsed/expanded using a toggle button (chevron icon) positioned between the document viewer and chat area. This button:
+- Appears on desktop when the document viewer is visible
+- Allows you to collapse the document viewer to maximize chat space
+- Automatically positions itself at the edge of the expanded/collapsed viewer
+
+### Chat Input Area
+
+The chat input area includes:
+- File attachment button (left side)
+- Image attachment button
+- Auto-resizing text input
+- Send button (aligned with textarea height)
+
+All buttons are sized consistently (`h-10 w-10`) to align properly with the text input area.
+
 ## Configuration
 
 ### hazo_chat_config.ini (Optional)
 
 ```ini
 [chat]
-# Polling interval in milliseconds
+# Real-time update mode: "polling" (automatic) or "manual" (refresh only)
+# polling: Automatically checks for new messages at the specified interval
+# manual: Only updates when user manually refreshes (via refresh button)
+realtime_mode = polling
+
+# Polling interval in milliseconds (only used when realtime_mode = polling)
 polling_interval = 5000
 
 # Messages to load per page

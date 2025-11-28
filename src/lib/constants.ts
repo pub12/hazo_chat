@@ -9,6 +9,9 @@
 // Default Configuration Values
 // ============================================================================
 
+/** Default real-time update mode: 'polling' or 'manual' */
+export const DEFAULT_REALTIME_MODE = 'polling' as const;
+
 /** Default polling interval in milliseconds */
 export const DEFAULT_POLLING_INTERVAL = 5000;
 

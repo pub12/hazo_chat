@@ -24,11 +24,13 @@ import type {
   PollingStatus
 } from '../types/index.js';
 import {
+  DEFAULT_REALTIME_MODE,
   DEFAULT_POLLING_INTERVAL,
   DEFAULT_MESSAGES_PER_PAGE,
   MAX_RETRY_ATTEMPTS,
   RETRY_BASE_DELAY
 } from '../lib/constants.js';
+import type { RealtimeMode } from '../types/index.js';
 
 // ============================================================================
 // Hook Parameters
@@ -43,7 +45,9 @@ export interface UseChatMessagesParams {
   reference_type?: string;
   /** Base URL for API endpoints (default: '/api/hazo_chat') */
   api_base_url?: string;
-  /** Polling interval in milliseconds (default: 3000) */
+  /** Real-time update mode: 'polling' (automatic) or 'manual' (refresh only) */
+  realtime_mode?: RealtimeMode;
+  /** Polling interval in milliseconds (only used when realtime_mode = 'polling', default: 5000) */
   polling_interval?: number;
   /** Number of messages per page for pagination (default: 20) */
   messages_per_page?: number;
@@ -81,6 +85,7 @@ export function useChatMessages({
   reference_id = '',
   reference_type = 'chat',
   api_base_url = '/api/hazo_chat',
+  realtime_mode = DEFAULT_REALTIME_MODE,
   polling_interval = DEFAULT_POLLING_INTERVAL,
   messages_per_page = DEFAULT_MESSAGES_PER_PAGE
 }: UseChatMessagesParams): UseChatMessagesReturn {
@@ -347,10 +352,20 @@ export function useChatMessages({
   }, [current_user_id, receiver_user_id, fetch_messages_from_api, transform_messages]);
 
   // -------------------------------------------------------------------------
-  // Start polling
+  // Start polling (only if realtime_mode is 'polling')
   // -------------------------------------------------------------------------
   useEffect(() => {
-    if (!receiver_user_id) {
+    // Only start polling if mode is 'polling'
+    if (realtime_mode !== 'polling' || !receiver_user_id) {
+      // Clear any existing timer if switching to manual mode
+      if (polling_timer_ref.current) {
+        clearInterval(polling_timer_ref.current);
+        polling_timer_ref.current = null;
+      }
+      // Set status to connected for manual mode (no polling needed)
+      if (realtime_mode === 'manual') {
+        set_polling_status('connected');
+      }
       return;
     }
 
@@ -383,7 +398,7 @@ export function useChatMessages({
         clearInterval(polling_timer_ref.current);
       }
     };
-  }, [receiver_user_id, polling_interval, poll_for_new_messages]);
+  }, [receiver_user_id, realtime_mode, polling_interval, poll_for_new_messages]);
 
   // -------------------------------------------------------------------------
   // Initial load effect

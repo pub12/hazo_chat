@@ -12,7 +12,8 @@
 
 'use client';
 
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
+import { IoChevronDown, IoChevronUp, IoChevronBack, IoChevronForward } from 'react-icons/io5';
 import { cn } from '../../lib/utils.js';
 import type {
   HazoChatProps,
@@ -22,9 +23,11 @@ import type {
 } from '../../types/index.js';
 import {
   DEFAULT_TIMEZONE,
+  DEFAULT_REALTIME_MODE,
   DEFAULT_POLLING_INTERVAL,
   DEFAULT_MESSAGES_PER_PAGE
 } from '../../lib/constants.js';
+import type { RealtimeMode } from '../../types/index.js';
 
 // Sub-components
 import { HazoChatProvider, useHazoChatContext } from './hazo_chat_context.js';
@@ -34,6 +37,7 @@ import { HazoChatDocumentViewer } from './hazo_chat_document_viewer.js';
 import { HazoChatMessages } from './hazo_chat_messages.js';
 import { HazoChatInput } from './hazo_chat_input.js';
 import { TooltipProvider } from '../ui/tooltip.js';
+import { Button } from '../ui/button.js';
 
 // Hooks
 import { useChatMessages } from '../../hooks/use_chat_messages.js';
@@ -55,6 +59,7 @@ interface HazoChatInnerProps {
   subtitle?: string;
   on_close?: () => void;
   className?: string;
+  realtime_mode?: RealtimeMode;
   polling_interval?: number;
   messages_per_page?: number;
 }
@@ -70,6 +75,7 @@ function HazoChatInner({
   subtitle,
   on_close,
   className,
+  realtime_mode = DEFAULT_REALTIME_MODE,
   polling_interval = DEFAULT_POLLING_INTERVAL,
   messages_per_page = DEFAULT_MESSAGES_PER_PAGE
 }: HazoChatInnerProps) {
@@ -107,6 +113,7 @@ function HazoChatInner({
     reference_id,
     reference_type,
     api_base_url,
+    realtime_mode,
     polling_interval,
     messages_per_page
   });
@@ -133,6 +140,26 @@ function HazoChatInner({
       }
     }
   });
+
+  // -------------------------------------------------------------------------
+  // References section collapse state
+  // -------------------------------------------------------------------------
+  const [is_references_expanded, set_is_references_expanded] = useState(() => {
+    // Default to collapsed if no references
+    return references.length > 0;
+  });
+
+  // Auto-expand when references are added
+  useEffect(() => {
+    if (references.length > 0 && !is_references_expanded) {
+      set_is_references_expanded(true);
+    }
+  }, [references.length, is_references_expanded]);
+
+  // -------------------------------------------------------------------------
+  // Document viewer collapse state
+  // -------------------------------------------------------------------------
+  const [is_document_viewer_expanded, set_is_document_viewer_expanded] = useState(true);
 
   // -------------------------------------------------------------------------
   // File upload hook
@@ -251,41 +278,93 @@ function HazoChatInner({
         on_close={on_close}
         on_refresh={refresh_messages}
         is_refreshing={is_loading_messages}
+        // Only show hamburger button on mobile for sidebar toggle
+        // On desktop, document viewer is always visible, so no toggle needed
         on_toggle_sidebar={toggle_sidebar}
         is_sidebar_open={is_sidebar_open}
       />
 
-      {/* Row 2: Reference area (full width) */}
-      <div className="cls_references_row border-b bg-muted/30">
+      {/* Row 2: Reference area (full width) - collapsible */}
+      <div className={cn(
+        'cls_references_row border-b bg-muted/30 transition-all duration-300 ease-in-out overflow-hidden',
+        is_references_expanded ? 'max-h-96' : 'max-h-8'
+      )}>
         <div className="cls_references_container px-3 py-2">
-          <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-            References
-          </h3>
-          <HazoChatReferenceList
-            references={references}
-            selected_reference_id={selected_reference?.id}
-            on_select={handle_reference_select}
-            className="flex-wrap"
-          />
+          <button
+            onClick={() => set_is_references_expanded(!is_references_expanded)}
+            className="cls_references_header flex items-center justify-between w-full gap-2 mb-1.5 hover:bg-muted/50 rounded px-1 -mx-1 transition-colors"
+            aria-label={is_references_expanded ? 'Collapse references' : 'Expand references'}
+            aria-expanded={is_references_expanded}
+          >
+            <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+              References
+            </h3>
+            {is_references_expanded ? (
+              <IoChevronUp className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+            ) : (
+              <IoChevronDown className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+            )}
+          </button>
+          {is_references_expanded && (
+            <div className="cls_references_content">
+              <HazoChatReferenceList
+                references={references}
+                selected_reference_id={selected_reference?.id}
+                on_select={handle_reference_select}
+                className="flex-wrap"
+              />
+            </div>
+          )}
         </div>
       </div>
 
       {/* Row 3: Two columns (doc preview | chat history) */}
       <div className="cls_main_content flex flex-1 overflow-hidden relative">
-        {/* Column 1: Document preview */}
+        {/* Column 1: Document preview - collapsible */}
         <div
           className={cn(
             'cls_doc_preview_column',
             'border-r bg-muted/20',
-            'w-[280px] md:w-[320px] lg:w-[380px]',
-            'flex-shrink-0',
-            'flex flex-col',
+            'flex-shrink-0 flex flex-col',
+            'transition-all duration-300 ease-in-out overflow-hidden',
             // Mobile: hidden by default, shown when sidebar is open
-            is_sidebar_open ? 'flex' : 'hidden md:flex'
+            is_sidebar_open ? 'flex' : 'hidden md:flex',
+            // Collapse/expand based on state
+            is_document_viewer_expanded
+              ? 'w-[280px] md:w-[320px] lg:w-[380px]'
+              : 'w-0 border-r-0'
           )}
         >
-          <HazoChatDocumentViewer reference={selected_reference || undefined} />
+          {is_document_viewer_expanded && (
+            <HazoChatDocumentViewer reference={selected_reference || undefined} />
+          )}
         </div>
+
+        {/* Toggle button for document viewer - show on desktop, hide on mobile when sidebar closed */}
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => set_is_document_viewer_expanded(!is_document_viewer_expanded)}
+          className={cn(
+            'cls_doc_viewer_toggle',
+            'absolute top-1/2 -translate-y-1/2 z-10',
+            'h-8 w-6 rounded-r-md rounded-l-none border-l-0',
+            'bg-background hover:bg-accent',
+            'transition-all duration-300',
+            // Hide on mobile when sidebar is closed
+            (!is_sidebar_open ? 'hidden md:flex' : 'flex'),
+            is_document_viewer_expanded
+              ? 'left-[280px] md:left-[320px] lg:left-[380px]'
+              : 'left-0'
+          )}
+          aria-label={is_document_viewer_expanded ? 'Collapse document viewer' : 'Expand document viewer'}
+        >
+          {is_document_viewer_expanded ? (
+            <IoChevronBack className="h-4 w-4" />
+          ) : (
+            <IoChevronForward className="h-4 w-4" />
+          )}
+        </Button>
 
         {/* Column 2: Chat history */}
         <div className="cls_chat_column flex flex-col flex-1 min-w-0">
@@ -358,6 +437,9 @@ export function HazoChat(props: HazoChatProps) {
     title,
     subtitle,
     on_close,
+    realtime_mode,
+    polling_interval,
+    messages_per_page,
     className
   } = props;
 
@@ -387,6 +469,9 @@ export function HazoChat(props: HazoChatProps) {
           title={title}
           subtitle={subtitle}
           on_close={on_close}
+          realtime_mode={realtime_mode}
+          polling_interval={polling_interval}
+          messages_per_page={messages_per_page}
           className={className}
         />
       </HazoChatProvider>

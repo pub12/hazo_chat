@@ -183,6 +183,12 @@ export interface HazoChatProps {
   subtitle?: string;
   /** Close button callback */
   on_close?: () => void;
+  /** Real-time update mode: 'polling' (automatic) or 'manual' (refresh only) */
+  realtime_mode?: RealtimeMode;
+  /** Polling interval in milliseconds (only used when realtime_mode = 'polling') */
+  polling_interval?: number;
+  /** Number of messages per page for pagination */
+  messages_per_page?: number;
   /** Additional CSS classes */
   className?: string;
 }
@@ -336,6 +342,11 @@ export interface HazoChatContextActions {
  * Full HazoChatContext value
  */
 export interface HazoChatContextValue extends HazoChatContextState, HazoChatContextActions {}
+
+/**
+ * Real-time update mode
+ */
+export type RealtimeMode = 'polling' | 'manual';
 
 /**
  * Polling connection status

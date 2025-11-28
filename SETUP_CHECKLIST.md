@@ -379,6 +379,41 @@ curl -X POST http://localhost:3000/api/hazo_auth/profiles \
 curl "http://localhost:3000/api/hazo_chat/messages?receiver_user_id=user-id"
 ```
 
+### UI Verification & Responsive Behavior
+
+#### Hamburger Menu Button
+
+**Expected Behavior:**
+- [ ] **Desktop (> 768px)**: Hamburger button should be **hidden**
+  - Document viewer is always visible as a left column
+  - Use the chevron toggle button to expand/collapse the document viewer
+- [ ] **Mobile (< 768px)**: Hamburger button should be **visible** in the header
+  - Click to toggle document viewer sidebar overlay
+  - Sidebar slides in from the left on mobile
+
+**If hamburger appears on desktop, check:**
+1. [ ] TailwindCSS is properly installed: `npm install tailwindcss`
+2. [ ] Tailwind config includes responsive breakpoints (should be default)
+3. [ ] Verify `md:` prefix classes are being compiled correctly
+4. [ ] Check browser DevTools - button should have `display: none` at `md:` breakpoint
+5. [ ] Ensure CSS is not being overridden by custom styles
+
+#### Document Viewer Toggle Button
+
+**Expected Behavior:**
+- [ ] Chevron toggle button appears between document viewer and chat area
+- [ ] Click to expand/collapse document viewer column
+- [ ] Button position adjusts when viewer is expanded/collapsed
+- [ ] Smooth transition animation when toggling
+
+#### Chat Input Area
+
+**Expected Behavior:**
+- [ ] File attachment and image buttons are aligned with text input
+- [ ] All buttons have consistent size (`40px` height)
+- [ ] Send button aligns properly with textarea
+- [ ] No visual misalignment or spacing issues
+
 ### UI Verification
 - [ ] Chat component renders without errors
 - [ ] No "Module not found: Can't resolve 'fs'" errors
@@ -416,6 +451,38 @@ curl "http://localhost:3000/api/hazo_chat/messages?receiver_user_id=user-id"
 3. Check browser console for errors
 4. Check network tab for API responses
 5. Check server logs for API errors
+
+### Issue: Hamburger button visible on desktop
+
+**Cause:** TailwindCSS responsive classes not being applied correctly.
+
+**Solution:**
+1. Verify TailwindCSS is installed: `npm list tailwindcss`
+2. Check `tailwind.config.js` includes responsive breakpoints:
+   ```js
+   module.exports = {
+     content: [
+       "./node_modules/hazo_chat/**/*.{js,ts,jsx,tsx}",
+       // ... your content paths
+     ],
+     theme: {
+       extend: {},
+     },
+   }
+   ```
+3. Ensure CSS file imports Tailwind directives:
+   ```css
+   @tailwind base;
+   @tailwind components;
+   @tailwind utilities;
+   ```
+4. Check browser DevTools - hamburger button should have `display: none` on desktop
+5. Verify no custom CSS is overriding the `md:hidden` class
+6. Clear build cache: `rm -rf .next` and rebuild
+
+**Expected Behavior:**
+- Desktop: Hamburger button is hidden, document viewer always visible
+- Mobile: Hamburger button visible to toggle sidebar overlay
 
 ### Error: "Profiles not loading"
 

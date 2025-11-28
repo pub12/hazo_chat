@@ -10,6 +10,7 @@
 // section: imports
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -28,12 +29,12 @@ import {
   IoLayers,
   IoClose,
   IoSend,
-  IoAttach,
-  IoImageOutline,
   IoCheckmarkOutline,
   IoCheckmarkDoneSharp,
   IoChevronBack,
   IoChevronForward,
+  IoChevronDown,
+  IoChevronUp,
   IoLinkSharp,
   IoRefresh
 } from 'react-icons/io5';
@@ -199,6 +200,7 @@ function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: 
   const [is_loading, set_is_loading] = useState(false);
   const [user_profiles, set_user_profiles] = useState<Map<string, UserProfile>>(new Map());
   const messages_container_ref = useRef<HTMLDivElement>(null);
+  const [is_references_expanded, set_is_references_expanded] = useState(() => DEMO_REFERENCES.length > 0);
 
   // Fetch user profiles for current user and receiver
   useEffect(() => {
@@ -412,25 +414,44 @@ function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: 
         </div>
       </div>
 
-      {/* Row 2: References */}
-      <div className="border-b bg-muted/30 px-3 py-2">
-        <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-          References
-        </h3>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {DEMO_REFERENCES.map((ref) => (
-            <Button
-              key={ref.id}
-              variant={selected_ref === ref.id ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => set_selected_ref(selected_ref === ref.id ? null : ref.id)}
-              className="h-7 px-2.5 text-xs font-medium rounded-full flex items-center"
-              aria-label={`Reference: ${ref.name}`}
-            >
-              {ref.name}
-              {get_ref_icon(ref.type)}
-            </Button>
-          ))}
+      {/* Row 2: References - collapsible */}
+      <div className={cn(
+        'border-b bg-muted/30 transition-all duration-300 ease-in-out overflow-hidden',
+        is_references_expanded ? 'max-h-96' : 'max-h-8'
+      )}>
+        <div className="px-3 py-2">
+          <button
+            onClick={() => set_is_references_expanded(!is_references_expanded)}
+            className="flex items-center justify-between w-full gap-2 mb-1.5 hover:bg-muted/50 rounded px-1 -mx-1 transition-colors"
+            aria-label={is_references_expanded ? 'Collapse references' : 'Expand references'}
+            aria-expanded={is_references_expanded}
+          >
+            <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+              References
+            </h3>
+            {is_references_expanded ? (
+              <IoChevronUp className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+            ) : (
+              <IoChevronDown className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+            )}
+          </button>
+          {is_references_expanded && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {DEMO_REFERENCES.map((ref) => (
+                <Button
+                  key={ref.id}
+                  variant={selected_ref === ref.id ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => set_selected_ref(selected_ref === ref.id ? null : ref.id)}
+                  className="h-7 px-2.5 text-xs font-medium rounded-full flex items-center"
+                  aria-label={`Reference: ${ref.name}`}
+                >
+                  {ref.name}
+                  {get_ref_icon(ref.type)}
+                </Button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -595,25 +616,17 @@ function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: 
 
       {/* Row 4: Input */}
       <div className="border-t bg-background p-3">
-        <div className="flex items-end gap-2">
-          <Button variant="ghost" size="icon" className="h-12 w-12 text-muted-foreground hover:text-foreground" aria-label="Attach file">
-            <IoAttach className="h-8 w-8" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-12 w-12 text-muted-foreground hover:text-foreground" aria-label="Attach image">
-            <IoImageOutline className="h-8 w-8" />
-          </Button>
-          <div className="flex-1">
-            <textarea
-              placeholder="Type a message..."
-              className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[40px] max-h-[120px]"
-              rows={1}
-              aria-label="Message input"
-              value={message_text}
-              onChange={(e) => set_message_text(e.target.value)}
-              onKeyPress={handle_key_press}
-              disabled={is_sending}
-            />
-          </div>
+        <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
+          <textarea
+            placeholder="Type a message..."
+            className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[40px] max-h-[120px]"
+            rows={1}
+            aria-label="Message input"
+            value={message_text}
+            onChange={(e) => set_message_text(e.target.value)}
+            onKeyPress={handle_key_press}
+            disabled={is_sending}
+          />
           <Button 
             size="icon" 
             className="cls_send_btn h-10 w-10" 
