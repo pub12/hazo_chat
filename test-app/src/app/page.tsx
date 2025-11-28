@@ -10,6 +10,7 @@
 // section: imports
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,6 +23,15 @@ import {
   DialogContent,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { 
   IoDocumentAttachSharp, 
   IoChatbubbleEllipses,
@@ -201,6 +211,11 @@ function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: 
   const [user_profiles, set_user_profiles] = useState<Map<string, UserProfile>>(new Map());
   const messages_container_ref = useRef<HTMLDivElement>(null);
   const [is_references_expanded, set_is_references_expanded] = useState(() => DEMO_REFERENCES.length > 0);
+  
+  // Alert Dialog states
+  const [alert_dialog_open, set_alert_dialog_open] = useState(false);
+  const [alert_dialog_title, set_alert_dialog_title] = useState('');
+  const [alert_dialog_message, set_alert_dialog_message] = useState('');
 
   // Fetch user profiles for current user and receiver
   useEffect(() => {
@@ -312,12 +327,19 @@ function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: 
       .substring(0, 2);
   };
 
+  // Show alert dialog helper
+  const show_alert = useCallback((title: string, message: string) => {
+    set_alert_dialog_title(title);
+    set_alert_dialog_message(message);
+    set_alert_dialog_open(true);
+  }, []);
+
   // Handle sending message
   const handle_send_message = async () => {
     if (!message_text.trim() || is_sending) return;
     
     if (!receiver_user_id) {
-      alert('Please select a user to chat with');
+      show_alert('Select User Required', 'Please select a user to chat with');
       return;
     }
 
@@ -351,7 +373,9 @@ function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: 
         };
         set_chat_messages(prev => [...prev, new_message]);
         set_message_text('');
-        console.log('Message sent successfully:', data.message);
+        
+        // Show success toast (FYI - no acknowledgment needed)
+        toast.success('Message sent successfully');
         
         // Scroll to bottom after message is sent
         setTimeout(() => {
@@ -361,11 +385,11 @@ function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: 
         }, 100);
       } else {
         console.error('Failed to send message:', data.error);
-        alert(`Failed to send message: ${data.error}`);
+        show_alert('Failed to Send Message', `Failed to send message: ${data.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error sending message:', error);
-      alert('Failed to send message. Please try again.');
+      show_alert('Error', 'Failed to send message. Please try again.');
     } finally {
       set_is_sending(false);
     }
@@ -615,7 +639,7 @@ function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: 
       </div>
 
       {/* Row 4: Input */}
-      <div className="border-t bg-background p-3">
+      <div className="border-t bg-background p-4">
         <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
           <textarea
             placeholder="Type a message..."
@@ -638,6 +662,23 @@ function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: 
           </Button>
         </div>
       </div>
+
+      {/* Alert Dialog for messages requiring acknowledgment */}
+      <AlertDialog open={alert_dialog_open} onOpenChange={set_alert_dialog_open}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{alert_dialog_title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {alert_dialog_message}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => set_alert_dialog_open(false)}>
+              OK
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -459,17 +459,35 @@ export function useChatMessages({
           // Replace optimistic message with real one
           const real_message: ChatMessage = {
             ...data.message,
+            // Ensure all required fields are set with proper defaults
+            reference_list: data.message.reference_list ?? null,
+            read_at: data.message.read_at ?? null,
+            deleted_at: data.message.deleted_at ?? null,
+            changed_at: data.message.changed_at ?? data.message.created_at,
             sender_profile: user_profiles_cache_ref.current.get(current_user_id),
             receiver_profile: user_profiles_cache_ref.current.get(payload.receiver_user_id),
             is_sender: true,
             send_status: 'sent'
           };
 
-          set_messages((prev) =>
-            prev.map((msg) =>
-              msg.id === optimistic_id ? real_message : msg
-            )
-          );
+          set_messages((prev) => {
+            // Check if real message already exists (from polling)
+            const real_message_exists = prev.some(msg => msg.id === real_message.id);
+            
+            if (real_message_exists) {
+              // Real message already exists from polling, just remove optimistic one
+              return prev.filter(msg => msg.id !== optimistic_id);
+            } else {
+              // Replace optimistic message with real one
+              const replaced = prev.map((msg) =>
+                msg.id === optimistic_id ? real_message : msg
+              );
+              // Sort to ensure correct chronological order
+              return replaced.sort((a, b) => 
+                new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+              );
+            }
+          });
           return true;
         } else {
           throw new Error(data.error || 'Failed to send message');

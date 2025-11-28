@@ -104,7 +104,7 @@ export function HazoChatInput({
     <div
       className={cn(
         'cls_hazo_chat_input',
-        'border-t bg-background p-3',
+        'border-t bg-background p-4',
         className
       )}
     >

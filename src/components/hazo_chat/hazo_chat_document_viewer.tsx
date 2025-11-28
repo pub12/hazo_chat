@@ -11,7 +11,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { IoDocumentOutline, IoDownloadOutline, IoImageOutline } from 'react-icons/io5';
+import { IoDocumentOutline, IoDownloadOutline } from 'react-icons/io5';
 import { cn } from '../../lib/utils.js';
 import type { HazoChatDocumentViewerProps } from '../../types/index.js';
 import { PREVIEWABLE_TYPES } from '../../lib/constants.js';
@@ -190,7 +190,7 @@ function DownloadFallback({ url, name, mime_type }: DownloadFallbackProps) {
 function EmptyState() {
   return (
     <div className="cls_viewer_empty flex flex-col items-center justify-center h-full gap-2 p-4 text-muted-foreground">
-      <IoImageOutline className="w-12 h-12 opacity-50" />
+      <IoDocumentOutline className="w-12 h-12 opacity-50" />
       <p className="text-sm">Select a document to preview</p>
     </div>
   );

@@ -5,11 +5,10 @@
  * - Profile picture (using Avatar)
  * - Message text (or deleted placeholder)
  * - Timestamp with timezone formatting
- * - Read status indicator (using Badge)
  * - Delete option for sender's messages (using Button)
  * - Reference/attachment icons
  * 
- * Uses shadcn/ui Avatar, Button, Badge, and Tooltip components.
+ * Uses shadcn/ui Avatar, Button, and Tooltip components.
  */
 
 'use client';
@@ -18,8 +17,6 @@ import React, { useState, useCallback } from 'react';
 import { format } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 import {
-  IoCheckmarkOutline,
-  IoCheckmarkDoneSharp,
   IoTrashOutline,
   IoDocumentAttachSharp
 } from 'react-icons/io5';
@@ -28,7 +25,6 @@ import type { ChatBubbleProps, ChatReferenceItem } from '../../types/index.js';
 import { DELETED_MESSAGE_PLACEHOLDER } from '../../lib/constants.js';
 import { Avatar, AvatarImage, AvatarFallback } from './avatar.js';
 import { Button } from './button.js';
-import { Badge } from './badge.js';
 import {
   Tooltip,
   TooltipContent,
@@ -104,56 +100,6 @@ export function ChatBubble({
     },
     [on_reference_click]
   );
-
-  // Render status icon
-  const render_status_icon = () => {
-    if (!is_sender) return null;
-
-    if (message.send_status === 'sending') {
-      return (
-        <Badge variant="secondary" className="cls_message_status px-1 py-0 h-4 animate-pulse">
-          <IoCheckmarkOutline className="w-3 h-3" />
-        </Badge>
-      );
-    }
-
-    if (message.send_status === 'failed') {
-      return (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Badge variant="destructive" className="cls_message_status px-1 py-0 h-4">
-              !
-            </Badge>
-          </TooltipTrigger>
-          <TooltipContent>Failed to send</TooltipContent>
-        </Tooltip>
-      );
-    }
-
-    if (message.read_at) {
-      return (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Badge variant="success" className="cls_message_status px-1 py-0 h-4">
-              <IoCheckmarkDoneSharp className="w-3 h-3" />
-            </Badge>
-          </TooltipTrigger>
-          <TooltipContent>Read</TooltipContent>
-        </Tooltip>
-      );
-    }
-
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Badge variant="secondary" className="cls_message_status px-1 py-0 h-4">
-            <IoCheckmarkOutline className="w-3 h-3" />
-          </Badge>
-        </TooltipTrigger>
-        <TooltipContent>Sent</TooltipContent>
-      </Tooltip>
-    );
-  };
 
   return (
     <div
@@ -253,18 +199,17 @@ export function ChatBubble({
           )}
         </div>
 
-        {/* Timestamp and status */}
+        {/* Timestamp */}
         <div
           className={cn(
             'cls_bubble_meta',
-            'flex items-center gap-1.5 mt-1',
+            'flex items-center mt-1',
             is_sender ? 'justify-end mr-1' : 'ml-1'
           )}
         >
           <span className="cls_bubble_time text-xs text-muted-foreground">
             {format_timestamp(message.created_at, timezone)}
           </span>
-          {render_status_icon()}
         </div>
       </div>
 

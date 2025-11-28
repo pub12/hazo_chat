@@ -242,7 +242,11 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
           reference_id: reference_id || '',
           reference_type: reference_type || 'chat',
           message_text: message_text.trim(),
+          reference_list: null,
+          read_at: null,
+          deleted_at: null,
           created_at: now,
+          changed_at: now,
         },
       });
     } catch (error) {

@@ -296,7 +296,7 @@ function HazoChatInner({
             aria-label={is_references_expanded ? 'Collapse references' : 'Expand references'}
             aria-expanded={is_references_expanded}
           >
-            <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+            <h3 className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
               References
             </h3>
             {is_references_expanded ? (
