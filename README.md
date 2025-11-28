@@ -119,7 +119,178 @@ See `test-app/src/app/globals.css` for complete variable definitions with exampl
 
 ### UI Design Standards
 
-For detailed visual design specifications, component behavior, and layout standards, see [UI_DESIGN_STANDARDS.md](./UI_DESIGN_STANDARDS.md).
+This section defines the visual design standards and component behavior specifications for hazo_chat. All consuming projects should follow these standards to ensure consistent UI appearance and behavior.
+
+#### Visual Design Elements
+
+**Document Preview Icon:**
+- Location: Empty state in document viewer (`HazoChatDocumentViewer`)
+- Icon: `IoDocumentOutline` (from `react-icons/io5`)
+- Size: `w-12 h-12` (48px × 48px)
+- Opacity: `opacity-50`
+- Text: "Select a document to preview" in `text-sm`
+
+**REFERENCES Section Font:**
+- Location: References section header
+- Font size: `text-[9px]` (9px)
+- Font weight: `font-medium`
+- Text transform: `uppercase`
+- Letter spacing: `tracking-wider`
+- Color: `text-muted-foreground`
+
+**Input Area Padding:**
+- Location: Chat input container (`HazoChatInput`)
+- Padding: `p-4` (16px on all sides)
+- Border: `border-t` (top border only)
+- Background: `bg-background`
+
+**Message Timestamp Display:**
+- Location: Chat bubble footer (`ChatBubble`)
+- Only timestamp is displayed (no status icons for sent/unread messages)
+- Font size: `text-xs`
+- Color: `text-muted-foreground`
+- Format: 24-hour format (e.g., "10:37 AM", "15:51")
+- Timezone: Respects `timezone` prop (default: "GMT+10")
+
+**Read Receipt Indicator:**
+- Location: Chat bubble footer, after timestamp
+- Icon: `IoCheckmarkDoneSharp` (from `react-icons/io5`)
+- Size: `h-4 w-4` (16px × 16px)
+- Color: `text-green-500`
+- Display condition: Only shown when `read_at` is not null AND message is from sender
+- Position: After timestamp with `gap-1` spacing
+
+#### Component Behavior
+
+**Close Button:**
+- Visibility: Always visible when `on_close` prop is provided to `HazoChat` component
+- Icon: `IoClose` (from `react-icons/io5`)
+- Size: `h-8 w-8` (32px × 32px)
+- Variant: `ghost`
+- Hover state: `hover:bg-destructive/10 hover:text-destructive`
+- Position: Top-right of header, after refresh button
+
+**Hamburger Menu Button:**
+- Desktop behavior: Hidden (`md:hidden` class)
+- Mobile behavior: Visible on screens < 768px
+- Purpose: Toggle document viewer sidebar on mobile
+- Icon: `IoMenuOutline` (from `react-icons/io5`)
+- Size: `h-8 w-8` (32px × 32px)
+- Position: Top-left of header, before title
+
+**Important:** If hamburger button appears on desktop, check Tailwind CSS configuration and ensure `md:` breakpoint utilities are working correctly.
+
+**Document Viewer Toggle Button:**
+- Icon: Chevron (`IoChevronBack` when expanded, `IoChevronForward` when collapsed)
+- Size: `h-8 w-6` (32px height × 24px width)
+- Position: Absolute, vertically centered between columns
+- Variant: `outline`
+- Border: `rounded-r-md rounded-l-none border-l-0`
+- Behavior: Smooth transitions with `transition-all duration-300`
+- Desktop: Visible when document viewer column is present
+- Mobile: Hidden when sidebar is closed
+
+**References Section Collapse/Expand:**
+- Collapsed height: `max-h-8`
+- Expanded height: `max-h-96`
+- Transition: `transition-all duration-300 ease-in-out`
+- Indicator: Chevron icon (`IoChevronDown` when collapsed, `IoChevronUp` when expanded)
+- Default state: Collapsed when no references, expanded when references exist
+
+#### Layout Standards
+
+**Chat Input Area:**
+- Layout: Flex container with `flex items-center gap-2`
+- Components: Single `Input` field and Send button (`Button` with `IoSend` icon)
+- No attachment buttons: Attachment/image buttons removed for simplified design
+- Input padding: `p-4` on container
+- Button alignment: Aligned with input height using flex
+
+**Button Alignment and Sizing:**
+- Send button: Standard button size, aligned with input
+- All interactive buttons: Consistent sizing for visual harmony
+- Icon sizes within buttons: `w-4 h-4` (16px × 16px)
+
+**Responsive Breakpoints:**
+- Mobile: < 768px (default)
+- Desktop: >= 768px (`md:` prefix)
+- Standard Tailwind breakpoints used throughout
+
+#### Container Requirements
+
+**Important:** When wrapping HazoChat in containers (e.g., Card components):
+
+1. **Avoid nested `overflow-hidden`**: Nested overflow-hidden containers can clip rounded corners. Use overflow-hidden only on the HazoChat component itself.
+
+2. **Padding**: If wrapping in a Card, ensure proper padding is maintained. Avoid `p-0` on CardContent as it may affect internal spacing.
+
+3. **Tailwind Configuration**: Ensure `./node_modules/hazo_chat/dist/**/*.{js,ts,jsx,tsx}` is included in your Tailwind `content` array so all utility classes (including `rounded-*` classes) are compiled.
+
+#### Typography
+
+**Font Families:**
+- Primary: System font stack or custom font via `--font-sans` CSS variable
+- Monospace: System monospace or custom font via `--font-mono` CSS variable
+
+**Font Sizes:**
+- Header title: `text-sm` (14px)
+- Header subtitle: `text-xs` (12px)
+- Message text: `text-sm` (14px)
+- Timestamp: `text-xs` (12px)
+- References header: `text-[9px]` (9px)
+- Empty state text: `text-sm` (14px)
+
+#### Spacing and Padding
+
+**Standard Padding Values:**
+- Container padding: `p-4` (16px)
+- Header padding: `px-4` (16px horizontal)
+- Message bubble padding: `px-4 py-2` (16px horizontal, 8px vertical)
+- Gap between elements: `gap-2` (8px) or `gap-1` (4px) for tight spacing
+
+#### Animation and Transitions
+
+**Standard Transitions:**
+- Component state changes: `transition-all duration-300`
+- Hover states: `transition-colors`
+- Smooth animations for expand/collapse: `ease-in-out`
+
+**Loading States:**
+- Skeleton loaders for initial message load
+- Spinner animation for refresh button when loading
+
+#### Accessibility
+
+**ARIA Labels:**
+All interactive elements must have appropriate ARIA labels:
+- Input fields: `aria-label="Message input"`
+- Buttons: `aria-label` describing action (e.g., "Send message", "Refresh chat history")
+- Close button: `aria-label="Close chat"`
+- Toggle buttons: `aria-label` and `aria-expanded` attributes
+
+**Keyboard Navigation:**
+- Send message: Enter key
+- Close dialogs: Escape key (handled by Alert Dialog component)
+
+#### Component Dependencies
+
+**Required External Components:**
+The following components must be available in consuming projects:
+1. **AlertDialog** (shadcn/ui style) - Used for user acknowledgment dialogs, not included in hazo_chat package
+2. **Toaster** (from `sonner` package) - Used for toast notifications, must be added to root layout with `position="top-right"` and `richColors` prop
+
+**Included Components:**
+The following UI components are included in hazo_chat package:
+- Button, Input, Textarea, Avatar, ScrollArea, Tooltip, Separator, Badge
+- ChatBubble (chat-specific), LoadingSkeleton (chat-specific)
+
+**Example References:**
+For complete implementation examples, see:
+- `test-app/src/app/page.tsx` - Usage example
+- `test-app/src/app/layout.tsx` - Toaster setup
+- `test-app/src/components/ui/alert-dialog.tsx` - Alert Dialog implementation
+- `test-app/src/app/globals.css` - CSS variables example
+- `test-app/tailwind.config.ts` - Tailwind configuration example
 
 ## Quick Start
 
@@ -593,7 +764,3 @@ MIT © Pubs Abayasiri
 ---
 
 For detailed setup instructions, see [SETUP_CHECKLIST.md](./SETUP_CHECKLIST.md).
-
-For UI design standards and visual specifications, see [UI_DESIGN_STANDARDS.md](./UI_DESIGN_STANDARDS.md).
-
-For UI design standards and specifications, see [UI_DESIGN_STANDARDS.md](./UI_DESIGN_STANDARDS.md).

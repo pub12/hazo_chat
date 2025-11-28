@@ -319,7 +319,7 @@ function HazoChatInner({
       </div>
 
       {/* Row 3: Two columns (doc preview | chat history) */}
-      <div className="cls_main_content flex flex-1 overflow-hidden relative">
+      <div className="cls_main_content flex flex-1 overflow-hidden relative h-full min-h-0">
         {/* Column 1: Document preview - collapsible */}
         <div
           className={cn(
@@ -347,10 +347,12 @@ function HazoChatInner({
           onClick={() => set_is_document_viewer_expanded(!is_document_viewer_expanded)}
           className={cn(
             'cls_doc_viewer_toggle',
-            'absolute top-1/2 -translate-y-1/2 z-10',
+            'absolute z-10',
             'h-8 w-6 rounded-r-md rounded-l-none border-l-0',
             'bg-background hover:bg-accent',
             'transition-all duration-300',
+            // Center vertically using flex on parent or fixed positioning
+            'top-[50%] -translate-y-1/2',
             // Hide on mobile when sidebar is closed
             (!is_sidebar_open ? 'hidden md:flex' : 'flex'),
             is_document_viewer_expanded

@@ -704,7 +704,7 @@ module.exports = nextConfig;
 - [ ] Smooth expand/collapse transitions
 - [ ] Button position adjusts correctly
 
-For detailed specifications, see [UI_DESIGN_STANDARDS.md](./UI_DESIGN_STANDARDS.md).
+For detailed specifications, see the [UI Design Standards](#ui-design-standards) section in README.md.
 
 ---
 

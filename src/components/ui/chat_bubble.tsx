@@ -139,10 +139,12 @@ export function ChatBubble({
         <div
           className={cn(
             'cls_bubble',
-            'px-4 py-2 rounded-2xl relative',
+            'px-4 py-2 relative',
+            // Explicit rounded corners using Tailwind's arbitrary value syntax for better compatibility
+            // Top-left, Top-right, Bottom-right, Bottom-left
             is_sender
-              ? 'bg-primary text-primary-foreground rounded-br-md'
-              : 'bg-muted text-foreground rounded-bl-md',
+              ? 'bg-primary text-primary-foreground rounded-[16px_16px_6px_16px]'
+              : 'bg-muted text-foreground rounded-[16px_16px_16px_6px]',
             is_deleted && 'opacity-60 italic'
           )}
         >
@@ -204,15 +206,17 @@ export function ChatBubble({
         <div
           className={cn(
             'cls_bubble_meta',
-            'flex items-center gap-1 mt-1',
+            'flex flex-row items-center gap-1 mt-1', // Explicitly set flex-row to prevent any reversal
             is_sender ? 'justify-end mr-1' : 'ml-1'
           )}
         >
-          <span className="cls_bubble_time text-xs text-muted-foreground">
+          {/* Time always comes first in DOM order */}
+          <span className="cls_bubble_time text-xs text-muted-foreground order-1">
             {format_timestamp(message.created_at, timezone)}
           </span>
+          {/* Read receipt double green tick comes after time - only shown when read_at is not null */}
           {is_sender && message.read_at && (
-            <IoCheckmarkDoneSharp className="h-4 w-4 text-green-500" />
+            <IoCheckmarkDoneSharp className="h-4 w-4 text-green-500 flex-shrink-0 order-2" />
           )}
         </div>
       </div>
