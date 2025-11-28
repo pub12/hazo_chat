@@ -20,6 +20,7 @@ A full-featured React chat component library for 1-1 communication with document
 ## Table of Contents
 
 - [Installation](#installation)
+- [UI Requirements](#ui-requirements)
 - [Quick Start](#quick-start)
 - [API Routes Setup](#api-routes-setup)
 - [Props Reference](#props-reference)
@@ -36,6 +37,89 @@ A full-featured React chat component library for 1-1 communication with document
 ```bash
 npm install hazo_chat hazo_connect next
 ```
+
+## UI Requirements
+
+hazo_chat requires the following UI setup to match the design standards:
+
+### Required UI Dependencies
+
+Install these packages in your consuming project:
+
+```bash
+npm install sonner @radix-ui/react-alert-dialog
+```
+
+### Required UI Components (shadcn/ui style)
+
+The following components must be available in your project at `@/components/ui/`:
+
+- `AlertDialog` - For user acknowledgment dialogs (must be created by consuming project)
+- `Button` - Included in hazo_chat package
+- `Input` - Included in hazo_chat package
+- All other components are included in hazo_chat package
+
+**Note:** The `AlertDialog` component is not included in the hazo_chat package. You must create it using shadcn/ui Alert Dialog component. See `test-app/src/components/ui/alert-dialog.tsx` for a reference implementation.
+
+### Required Global Providers
+
+Add Sonner Toaster to your root layout:
+
+```tsx
+// app/layout.tsx
+import { Toaster } from 'sonner';
+
+export default function RootLayout({ children }) {
+  return (
+    <html>
+      <body>
+        {children}
+        <Toaster position="top-right" richColors />
+      </body>
+    </html>
+  );
+}
+```
+
+### Required Tailwind Configuration
+
+Your `tailwind.config.ts` must include hazo_chat package paths in content:
+
+```typescript
+export default {
+  content: [
+    // ... your existing paths
+    './node_modules/hazo_chat/dist/**/*.{js,ts,jsx,tsx}',
+  ],
+  // ... rest of config
+};
+```
+
+**Important:** Without this configuration, Tailwind classes used by hazo_chat components may not be compiled, causing styling issues.
+
+### Required CSS Variables
+
+Your global CSS must define these CSS variables (shadcn/ui standard):
+
+**Core Colors:**
+- `--background`, `--foreground`
+- `--primary`, `--primary-foreground`
+- `--secondary`, `--secondary-foreground`
+- `--muted`, `--muted-foreground`
+- `--accent`, `--accent-foreground`
+- `--destructive`, `--destructive-foreground`
+
+**Border and Input:**
+- `--border`, `--input`, `--ring`
+
+**Card:**
+- `--card`, `--card-foreground`
+
+See `test-app/src/app/globals.css` for complete variable definitions with example values.
+
+### UI Design Standards
+
+For detailed visual design specifications, component behavior, and layout standards, see [UI_DESIGN_STANDARDS.md](./UI_DESIGN_STANDARDS.md).
 
 ## Quick Start
 
@@ -480,6 +564,22 @@ import { DEFAULT_POLLING_INTERVAL, MIME_TYPE_MAP } from 'hazo_chat/lib';
 4. **CORS errors**
    - API routes should be on the same domain as the frontend
 
+5. **UI components not styled correctly**
+   - Ensure Tailwind config includes hazo_chat package paths in `content` array
+   - Verify CSS variables are defined in `globals.css`
+   - Check that all UI dependencies are installed (see [UI Requirements](#ui-requirements))
+   - Rebuild CSS: `rm -rf .next` and restart dev server
+
+6. **Toast notifications not appearing**
+   - Ensure Sonner Toaster is added to root layout (see [UI Requirements](#ui-requirements))
+   - Check that `sonner` package is installed
+   - Verify `<Toaster position="top-right" richColors />` is in layout body
+
+7. **Alert Dialog not working**
+   - Create Alert Dialog component at `src/components/ui/alert-dialog.tsx`
+   - See `test-app/src/components/ui/alert-dialog.tsx` for reference implementation
+   - Ensure `@radix-ui/react-alert-dialog` is installed
+
 ## Related Packages
 
 - [hazo_connect](https://github.com/pub12/hazo_connect) - Database adapter
@@ -493,3 +593,7 @@ MIT © Pubs Abayasiri
 ---
 
 For detailed setup instructions, see [SETUP_CHECKLIST.md](./SETUP_CHECKLIST.md).
+
+For UI design standards and visual specifications, see [UI_DESIGN_STANDARDS.md](./UI_DESIGN_STANDARDS.md).
+
+For UI design standards and specifications, see [UI_DESIGN_STANDARDS.md](./UI_DESIGN_STANDARDS.md).

@@ -18,7 +18,8 @@ import { format } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 import {
   IoTrashOutline,
-  IoDocumentAttachSharp
+  IoDocumentAttachSharp,
+  IoCheckmarkDoneSharp
 } from 'react-icons/io5';
 import { cn } from '../../lib/utils.js';
 import type { ChatBubbleProps, ChatReferenceItem } from '../../types/index.js';
@@ -199,17 +200,20 @@ export function ChatBubble({
           )}
         </div>
 
-        {/* Timestamp */}
+        {/* Timestamp and read status */}
         <div
           className={cn(
             'cls_bubble_meta',
-            'flex items-center mt-1',
+            'flex items-center gap-1 mt-1',
             is_sender ? 'justify-end mr-1' : 'ml-1'
           )}
         >
           <span className="cls_bubble_time text-xs text-muted-foreground">
             {format_timestamp(message.created_at, timezone)}
           </span>
+          {is_sender && message.read_at && (
+            <IoCheckmarkDoneSharp className="h-4 w-4 text-green-500" />
+          )}
         </div>
       </div>
 

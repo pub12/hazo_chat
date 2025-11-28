@@ -11,9 +11,11 @@ A comprehensive, step-by-step guide for setting up hazo_chat in a Next.js projec
 3. [Database Setup](#3-database-setup)
 4. [API Routes](#4-api-routes)
 5. [Component Integration](#5-component-integration)
-6. [Configuration (Optional)](#6-configuration-optional)
-7. [Verification Checklist](#7-verification-checklist)
-8. [Troubleshooting](#8-troubleshooting)
+6. [UI Components and Styling Setup](#6-ui-components-and-styling-setup)
+7. [Configuration (Optional)](#7-configuration-optional)
+8. [UI Design Standards Compliance](#8-ui-design-standards-compliance)
+9. [Verification Checklist](#9-verification-checklist)
+10. [Troubleshooting](#10-troubleshooting)
 
 ---
 
@@ -306,7 +308,327 @@ export default function ChatPage() {
 
 ---
 
-## 6. Configuration (Optional)
+## 6. UI Components and Styling Setup
+
+### Step 6.1: Install UI Dependencies
+
+Install the required UI packages:
+
+```bash
+npm install sonner @radix-ui/react-alert-dialog
+```
+
+**Verification:**
+- [ ] `sonner` package installed
+- [ ] `@radix-ui/react-alert-dialog` installed
+- [ ] `package.json` contains both dependencies
+
+### Step 6.2: Create Alert Dialog Component
+
+**File:** `src/components/ui/alert-dialog.tsx`
+
+Create the Alert Dialog component using shadcn/ui style. This component is used for messages requiring user acknowledgment.
+
+**Reference Implementation:** See `test-app/src/components/ui/alert-dialog.tsx` for a complete example.
+
+**Minimum Required Structure:**
+
+```typescript
+"use client"
+
+import * as React from "react"
+import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+
+const AlertDialog = AlertDialogPrimitive.Root
+const AlertDialogTrigger = AlertDialogPrimitive.Trigger
+const AlertDialogPortal = AlertDialogPrimitive.Portal
+
+const AlertDialogOverlay = React.forwardRef<
+  React.ElementRef<typeof AlertDialogPrimitive.Overlay>,
+  React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Overlay>
+>(({ className, ...props }, ref) => (
+  <AlertDialogPrimitive.Overlay
+    className={cn(
+      "fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      className
+    )}
+    {...props}
+    ref={ref}
+  />
+))
+AlertDialogOverlay.displayName = AlertDialogPrimitive.Overlay.displayName
+
+const AlertDialogContent = React.forwardRef<
+  React.ElementRef<typeof AlertDialogPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
+>(({ className, ...props }, ref) => (
+  <AlertDialogPortal>
+    <AlertDialogOverlay />
+    <AlertDialogPrimitive.Content
+      ref={ref}
+      className={cn(
+        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
+        className
+      )}
+      {...props}
+    />
+  </AlertDialogPortal>
+))
+AlertDialogContent.displayName = AlertDialogPrimitive.Content.displayName
+
+const AlertDialogHeader = ({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn(
+      "flex flex-col space-y-2 text-center sm:text-left",
+      className
+    )}
+    {...props}
+  />
+)
+AlertDialogHeader.displayName = "AlertDialogHeader"
+
+const AlertDialogFooter = ({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn(
+      "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
+      className
+    )}
+    {...props}
+  />
+)
+AlertDialogFooter.displayName = "AlertDialogFooter"
+
+const AlertDialogTitle = React.forwardRef<
+  React.ElementRef<typeof AlertDialogPrimitive.Title>,
+  React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Title>
+>(({ className, ...props }, ref) => (
+  <AlertDialogPrimitive.Title
+    ref={ref}
+    className={cn("text-lg font-semibold", className)}
+    {...props}
+  />
+))
+AlertDialogTitle.displayName = AlertDialogPrimitive.Title.displayName
+
+const AlertDialogDescription = React.forwardRef<
+  React.ElementRef<typeof AlertDialogPrimitive.Description>,
+  React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Description>
+>(({ className, ...props }, ref) => (
+  <AlertDialogPrimitive.Description
+    ref={ref}
+    className={cn("text-sm text-muted-foreground", className)}
+    {...props}
+  />
+))
+AlertDialogDescription.displayName =
+  AlertDialogPrimitive.Description.displayName
+
+const AlertDialogAction = React.forwardRef<
+  React.ElementRef<typeof AlertDialogPrimitive.Action>,
+  React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Action>
+>(({ className, ...props }, ref) => (
+  <AlertDialogPrimitive.Action
+    ref={ref}
+    className={cn(
+      "inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+      className
+    )}
+    {...props}
+  />
+))
+AlertDialogAction.displayName = AlertDialogPrimitive.Action.displayName
+
+const AlertDialogCancel = React.forwardRef<
+  React.ElementRef<typeof AlertDialogPrimitive.Cancel>,
+  React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Cancel>
+>(({ className, ...props }, ref) => (
+  <AlertDialogPrimitive.Cancel
+    ref={ref}
+    className={cn(
+      "mt-2 sm:mt-0",
+      className
+    )}
+    {...props}
+  />
+))
+AlertDialogCancel.displayName = AlertDialogPrimitive.Cancel.displayName
+
+export {
+  AlertDialog,
+  AlertDialogPortal,
+  AlertDialogOverlay,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+}
+```
+
+**Verification:**
+- [ ] Alert Dialog component created at `src/components/ui/alert-dialog.tsx`
+- [ ] Component exports all required sub-components
+- [ ] No TypeScript errors
+
+### Step 6.3: Setup Sonner Toaster
+
+**File:** `src/app/layout.tsx`
+
+Add the Sonner Toaster component to your root layout for toast notifications:
+
+```tsx
+import { Toaster } from 'sonner';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        {children}
+        <Toaster position="top-right" richColors />
+      </body>
+    </html>
+  );
+}
+```
+
+**Verification:**
+- [ ] `Toaster` imported from `sonner`
+- [ ] Toaster added to root layout
+- [ ] Position set to `top-right`
+- [ ] `richColors` prop enabled
+
+### Step 6.4: Configure Tailwind CSS
+
+**File:** `tailwind.config.ts`
+
+Ensure hazo_chat package is included in Tailwind content paths:
+
+```typescript
+import type { Config } from 'tailwindcss';
+
+const config: Config = {
+  content: [
+    './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/components/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/app/**/*.{js,ts,jsx,tsx,mdx}',
+    // Include hazo_chat package components
+    './node_modules/hazo_chat/dist/**/*.{js,ts,jsx,tsx}',
+  ],
+  // ... rest of your config
+};
+
+export default config;
+```
+
+**Important:** Without this configuration, Tailwind classes used by hazo_chat components will not be compiled, causing styling issues.
+
+**Verification:**
+- [ ] `tailwind.config.ts` includes hazo_chat package path
+- [ ] Path matches your `node_modules` location
+- [ ] Config syntax is valid
+
+### Step 6.5: Setup CSS Variables
+
+**File:** `src/app/globals.css`
+
+Ensure all required CSS variables are defined. hazo_chat uses shadcn/ui standard CSS variables:
+
+```css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --radius: 0.5rem;
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+  }
+
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+```
+
+**Reference:** See `test-app/src/app/globals.css` for a complete example with oklch color format.
+
+**Verification:**
+- [ ] All required CSS variables defined in `:root`
+- [ ] Dark mode variables defined (if supporting dark mode)
+- [ ] Tailwind directives included (`@tailwind base`, etc.)
+- [ ] Base layer styles applied
+
+### UI Setup Verification Checklist
+
+- [ ] All UI dependencies installed
+- [ ] Alert Dialog component created and working
+- [ ] Sonner Toaster added to root layout
+- [ ] Tailwind config includes hazo_chat paths
+- [ ] CSS variables defined in globals.css
+- [ ] No build errors related to UI components
+- [ ] Toast notifications working
+- [ ] Alert dialogs displaying correctly
+
+---
+
+## 7. Configuration (Optional)
 
 ### hazo_connect Configuration
 
@@ -350,7 +672,43 @@ module.exports = nextConfig;
 
 ---
 
-## 7. Verification Checklist
+## 8. UI Design Standards Compliance
+
+### Visual Design Verification
+
+**Document Preview:**
+- [ ] Empty state shows `IoDocumentOutline` icon (not image icon)
+- [ ] Icon size is 48px × 48px with 50% opacity
+
+**REFERENCES Section:**
+- [ ] Font size is 9px (`text-[9px]`)
+- [ ] Text is uppercase with wide letter spacing
+- [ ] Section is collapsible with chevron indicator
+
+**Input Area:**
+- [ ] Padding is 16px (`p-4`) on all sides
+- [ ] Input field and send button are properly aligned
+
+**Message Display:**
+- [ ] Only timestamp shown under messages (no status icons)
+- [ ] Double green checkmark (`IoCheckmarkDoneSharp`) appears when message is read
+- [ ] Checkmark only shows for sender's messages with `read_at` not null
+
+**Header:**
+- [ ] Close button visible when `on_close` prop provided
+- [ ] Hamburger menu hidden on desktop (screens >= 768px)
+- [ ] Hamburger menu visible on mobile (screens < 768px)
+
+**Document Viewer:**
+- [ ] Toggle button visible between viewer and chat area
+- [ ] Smooth expand/collapse transitions
+- [ ] Button position adjusts correctly
+
+For detailed specifications, see [UI_DESIGN_STANDARDS.md](./UI_DESIGN_STANDARDS.md).
+
+---
+
+## 9. Verification Checklist
 
 ### Installation Verification
 - [ ] All packages installed without errors
@@ -423,7 +781,7 @@ curl "http://localhost:3000/api/hazo_chat/messages?receiver_user_id=user-id"
 
 ---
 
-## 8. Troubleshooting
+## 10. Troubleshooting
 
 ### Error: "Module not found: Can't resolve 'fs'"
 
@@ -500,6 +858,49 @@ curl "http://localhost:3000/api/hazo_chat/messages?receiver_user_id=user-id"
 2. Verify polling interval (default: 5000ms)
 3. Check for JavaScript errors in console
 4. Verify API returns `{ success: true, messages: [] }` format
+
+### Issue: UI components not styled correctly
+
+**Possible Causes:**
+1. Tailwind CSS not configured to include hazo_chat package paths
+2. CSS variables not defined in globals.css
+3. Missing UI dependencies
+
+**Solution:**
+1. Ensure `tailwind.config.ts` includes: `'./node_modules/hazo_chat/dist/**/*.{js,ts,jsx,tsx}'` in content array
+2. Verify all required CSS variables are defined (see Step 6.5)
+3. Check that `@tailwind base`, `@tailwind components`, `@tailwind utilities` are in globals.css
+4. Rebuild: `rm -rf .next` and `npm run build`
+
+### Issue: Alert Dialog not working
+
+**Cause:** Alert Dialog component not created or not properly imported.
+
+**Solution:**
+1. Create Alert Dialog component at `src/components/ui/alert-dialog.tsx`
+2. See `test-app/src/components/ui/alert-dialog.tsx` for reference
+3. Ensure `@radix-ui/react-alert-dialog` is installed
+4. Verify component exports all required sub-components
+
+### Issue: Toast notifications not appearing
+
+**Cause:** Sonner Toaster not added to root layout.
+
+**Solution:**
+1. Import `Toaster` from `sonner` in root layout
+2. Add `<Toaster position="top-right" richColors />` to layout body
+3. Ensure `sonner` package is installed
+4. Check browser console for errors
+
+### Issue: CSS variables not applying
+
+**Cause:** CSS variables not defined or Tailwind not processing them.
+
+**Solution:**
+1. Verify CSS variables are in `globals.css` under `@layer base { :root { ... } }`
+2. Check that Tailwind config has correct content paths
+3. Ensure CSS file is imported in root layout
+4. Rebuild CSS: restart dev server or rebuild
 
 ---
 

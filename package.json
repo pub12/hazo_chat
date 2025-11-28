@@ -31,7 +31,8 @@
   "files": [
     "dist",
     "README.md",
-    "SETUP_CHECKLIST.md"
+    "SETUP_CHECKLIST.md",
+    "UI_DESIGN_STANDARDS.md"
   ],
   "workspaces": [
     "test-app"
