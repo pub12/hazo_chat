@@ -233,11 +233,101 @@ export async function POST(request: NextRequest) {
 }
 ```
 
+### Step 4.4: Unread Count API (Optional - For Unread Badges)
+
+**File: `src/app/api/hazo_chat/unread_count/route.ts`**
+
+This endpoint is optional but useful for displaying unread message counts or badges in your UI.
+
+```typescript
+/**
+ * API route to get unread message counts grouped by reference_id
+ * Uses the exportable library function from hazo_chat
+ */
+
+export const dynamic = 'force-dynamic';
+
+import { createUnreadCountFunction } from 'hazo_chat/api';
+import { getHazoConnectSingleton } from 'hazo_connect/nextjs/setup';
+import { NextRequest, NextResponse } from 'next/server';
+
+// Create the unread count function using the factory
+const hazo_chat_get_unread_count = createUnreadCountFunction({
+  getHazoConnect: () => getHazoConnectSingleton()
+});
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const receiver_user_id = searchParams.get('receiver_user_id');
+
+    if (!receiver_user_id) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'receiver_user_id is required',
+          unread_counts: []
+        },
+        { status: 400 }
+      );
+    }
+
+    // Call the library function
+    const unread_counts = await hazo_chat_get_unread_count(receiver_user_id);
+
+    return NextResponse.json({
+      success: true,
+      receiver_user_id,
+      unread_counts,
+      total_references: unread_counts.length,
+      total_unread: unread_counts.reduce((sum, item) => sum + item.count, 0)
+    });
+  } catch (error) {
+    const error_message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[hazo_chat/unread_count] Error:', error_message, error);
+    
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: error_message,
+        unread_counts: []
+      },
+      { status: 500 }
+    );
+  }
+}
+```
+
+**What this endpoint does:**
+- Takes `receiver_user_id` as a query parameter
+- Returns an array of objects with `reference_id` and `count` of unread messages
+- Only counts messages where `read_at` is `null` and `deleted_at` is `null`
+- Groups results by `reference_id`
+- Sorts by count (descending - most unread first)
+
+**Response format:**
+```json
+{
+  "success": true,
+  "receiver_user_id": "user-123",
+  "unread_counts": [
+    { "reference_id": "ref-1", "count": 5 },
+    { "reference_id": "ref-2", "count": 3 },
+    { "reference_id": "", "count": 1 }
+  ],
+  "total_references": 3,
+  "total_unread": 9
+}
+```
+
+**Note:** This endpoint is optional. Only create it if you need to display unread message counts in your UI.
+
 ### API Routes Summary
 
 | Endpoint | Method | File | Purpose |
 |----------|--------|------|---------|
 | `/api/hazo_chat/messages` | GET, POST | `api/hazo_chat/messages/route.ts` | Message CRUD |
+| `/api/hazo_chat/unread_count` | GET | `api/hazo_chat/unread_count/route.ts` | Get unread counts (optional) |
 | `/api/hazo_auth/me` | GET | `api/hazo_auth/me/route.ts` | Get current user |
 | `/api/hazo_auth/profiles` | POST | `api/hazo_auth/profiles/route.ts` | Get user profiles |
 
@@ -246,6 +336,7 @@ export async function POST(request: NextRequest) {
 - [ ] `GET /api/hazo_auth/me` returns user data when logged in
 - [ ] `POST /api/hazo_auth/profiles` returns profiles for given IDs
 - [ ] `GET /api/hazo_chat/messages?receiver_user_id=xxx` works
+- [ ] `GET /api/hazo_chat/unread_count?receiver_user_id=xxx` returns unread counts (if implemented)
 
 ---
 
@@ -735,6 +826,9 @@ curl -X POST http://localhost:3000/api/hazo_auth/profiles \
 
 # Test messages endpoint
 curl "http://localhost:3000/api/hazo_chat/messages?receiver_user_id=user-id"
+
+# Test unread count endpoint (if implemented)
+curl "http://localhost:3000/api/hazo_chat/unread_count?receiver_user_id=user-id"
 ```
 
 ### UI Verification & Responsive Behavior
@@ -912,6 +1006,7 @@ npm install hazo_chat hazo_connect
 
 # 2. Create API routes
 mkdir -p src/app/api/hazo_chat/messages
+mkdir -p src/app/api/hazo_chat/unread_count  # Optional: for unread counts
 mkdir -p src/app/api/hazo_auth/me
 mkdir -p src/app/api/hazo_auth/profiles
 

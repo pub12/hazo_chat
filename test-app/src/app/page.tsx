@@ -46,7 +46,9 @@ import {
   IoChevronDown,
   IoChevronUp,
   IoLinkSharp,
-  IoRefresh
+  IoRefresh,
+  IoOpenOutline,
+  IoDownloadOutline
 } from 'react-icons/io5';
 import { LuTextCursorInput } from 'react-icons/lu';
 // Import ProfilePicMenu and use_auth_status from hazo_auth
@@ -150,12 +152,12 @@ const DEMO_MESSAGES: DemoMessage[] = [
   }
 ];
 
-const DEMO_REFERENCES: Array<{ id: string; name: string; type: 'link' | 'document' | 'field' }> = [
-  { id: '1', name: 'Project_Requirements.pdf', type: 'link' },
-  { id: '2', name: 'Design_Mockups.png', type: 'document' },
-  { id: '3', name: 'Contract.pdf', type: 'field' },
-  { id: '4', name: 'Budget.xlsx', type: 'link' }
-];
+interface ReferenceFile {
+    id: string;
+    name: string;
+    type: 'link' | 'document' | 'field';
+    url?: string;
+}
 
 // section: helper_functions
 // Helper to get icon for reference type
@@ -177,6 +179,7 @@ interface DemoChatProps {
   receiver_user_id?: string;
   reference_id?: string;
   reference_type?: string;
+  references?: ReferenceFile[];
 }
 
 // section: chat_message_type
@@ -200,7 +203,7 @@ interface UserProfile {
 }
 
 // section: demo_chat_component
-function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: DemoChatProps) {
+function DemoChat({ on_close, receiver_user_id, reference_id, reference_type, references = [] }: DemoChatProps) {
   const [selected_ref, set_selected_ref] = useState<string | null>(null);
   const [is_preview_expanded, set_is_preview_expanded] = useState(false);
   const [message_text, set_message_text] = useState('');
@@ -210,8 +213,10 @@ function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: 
   const [is_loading, set_is_loading] = useState(false);
   const [user_profiles, set_user_profiles] = useState<Map<string, UserProfile>>(new Map());
   const messages_container_ref = useRef<HTMLDivElement>(null);
-  const [is_references_expanded, set_is_references_expanded] = useState(() => DEMO_REFERENCES.length > 0);
+  const [is_references_expanded, set_is_references_expanded] = useState(() => references.length > 0);
   
+  const selected_file = selected_ref ? references.find(ref => ref.id === selected_ref) : null;
+
   // Alert Dialog states
   const [alert_dialog_open, set_alert_dialog_open] = useState(false);
   const [alert_dialog_title, set_alert_dialog_title] = useState('');
@@ -424,17 +429,17 @@ function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: 
             <IoRefresh className={`h-4 w-4 ${is_loading ? 'animate-spin' : ''}`} />
           </Button>
           {/* Close button */}
-          {on_close && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={on_close}
-              className="h-8 w-8 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-              aria-label="Close chat"
-            >
-              <IoClose className="h-4 w-4" />
-            </Button>
-          )}
+        {on_close && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={on_close}
+            className="h-8 w-8 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            aria-label="Close chat"
+          >
+            <IoClose className="h-4 w-4" />
+          </Button>
+        )}
         </div>
       </div>
 
@@ -451,8 +456,8 @@ function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: 
             aria-expanded={is_references_expanded}
           >
             <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-              References
-            </h3>
+          References
+        </h3>
             {is_references_expanded ? (
               <IoChevronUp className="w-3 h-3 text-muted-foreground flex-shrink-0" />
             ) : (
@@ -460,20 +465,26 @@ function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: 
             )}
           </button>
           {is_references_expanded && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              {DEMO_REFERENCES.map((ref) => (
-                <Button
-                  key={ref.id}
-                  variant={selected_ref === ref.id ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => set_selected_ref(selected_ref === ref.id ? null : ref.id)}
-                  className="h-7 px-2.5 text-xs font-medium rounded-full flex items-center"
-                  aria-label={`Reference: ${ref.name}`}
-                >
-                  {ref.name}
-                  {get_ref_icon(ref.type)}
-                </Button>
-              ))}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {references.map((ref) => (
+            <Button
+              key={ref.id}
+              variant={selected_ref === ref.id ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => {
+                const new_selected_ref = selected_ref === ref.id ? null : ref.id;
+                set_selected_ref(new_selected_ref);
+                if (new_selected_ref) {
+                  set_is_preview_expanded(true);
+                }
+              }}
+              className="h-7 px-2.5 text-xs font-medium rounded-full flex items-center"
+              aria-label={`Reference: ${ref.name}`}
+            >
+              {ref.name}
+              {get_ref_icon(ref.type)}
+            </Button>
+          ))}
             </div>
           )}
         </div>
@@ -490,10 +501,59 @@ function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: 
           `}
         >
           {is_preview_expanded && (
-            <>
-              <IoDocumentAttachSharp className="h-12 w-12 mb-2 opacity-30" />
-              <p className="text-sm">Select a document to preview</p>
-            </>
+            <div className="relative w-full h-full p-2 flex items-center justify-center">
+              {/* Action buttons for preview */}
+              {selected_file && selected_file.url && (
+                <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
+                  <a
+                    href={selected_file.url}
+                    download={selected_file.name}
+                    aria-label={`Download ${selected_file.name}`}
+                  >
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 bg-background/60 backdrop-blur-sm hover:bg-background/80"
+                    >
+                      <IoDownloadOutline className="h-4 w-4" />
+                    </Button>
+                  </a>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 bg-background/60 backdrop-blur-sm hover:bg-background/80"
+                    onClick={() => window.open(selected_file.url, '_blank')}
+                    aria-label={`Open ${selected_file.name} in a new tab`}
+                  >
+                    <IoOpenOutline className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+
+              {selected_file && selected_file.url ? (
+                (() => {
+                  const file_extension = selected_file.name.split('.').pop()?.toLowerCase();
+                  if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(file_extension || '')) {
+                    return <img src={selected_file.url} alt={`Preview of ${selected_file.name}`} className="object-contain w-full h-full rounded-md" />;
+                  } else if (file_extension === 'pdf') {
+                    return <iframe src={selected_file.url} title={`Preview of ${selected_file.name}`} className="w-full h-full border-0 rounded-md" />;
+                  } else {
+                    return (
+                      <div className="flex flex-col items-center justify-center h-full text-center p-4">
+                        <IoDocumentAttachSharp className="h-12 w-12 mb-2 opacity-30" />
+                        <p className="text-sm font-semibold break-all">{selected_file.name}</p>
+                        <p className="text-xs mt-1 text-muted-foreground">Preview not available for this file type.</p>
+                      </div>
+                    );
+                  }
+                })()
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-center p-4">
+                  <IoDocumentAttachSharp className="h-12 w-12 mb-2 opacity-30" />
+                  <p className="text-sm">Select a document to preview</p>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -557,10 +617,10 @@ function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: 
             const initials = get_initials(sender_name);
             
             return (
-              <div
-                key={msg.id}
+            <div
+              key={msg.id}
                 className={`flex items-end gap-2 ${is_me ? 'flex-row-reverse' : ''}`}
-              >
+            >
                 {/* Avatar with HoverCard */}
                 <HoverCard>
                   <HoverCardTrigger asChild>
@@ -582,57 +642,102 @@ function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: 
                       )}
                     </button>
                   </HoverCardTrigger>
-                  <HoverCardContent className="w-72" side={is_me ? 'left' : 'right'} align="start">
-                    <div className="flex gap-4">
-                      {/* Larger profile picture */}
-                      {avatar_url ? (
-                        <img
-                          src={avatar_url}
-                          alt={`${sender_name}'s profile picture`}
-                          className="w-16 h-16 rounded-full object-cover flex-shrink-0"
-                        />
-                      ) : (
-                        <div className={`w-16 h-16 rounded-full flex items-center justify-center text-xl font-semibold flex-shrink-0 ${
-                          is_me 
+                  <HoverCardContent className="w-80" side={is_me ? 'left' : 'right'} align="start">
+                    <div className="flex flex-col gap-4">
+                      {/* Profile section */}
+                      <div className="flex gap-4">
+                        {/* Larger profile picture */}
+                        {avatar_url ? (
+                          <img
+                            src={avatar_url}
+                            alt={`${sender_name}'s profile picture`}
+                            className="w-16 h-16 rounded-full object-cover flex-shrink-0"
+                          />
+                        ) : (
+                          <div className={`w-16 h-16 rounded-full flex items-center justify-center text-xl font-semibold flex-shrink-0 ${
+                            is_me 
                             ? 'bg-primary/20 text-primary' 
                             : 'bg-muted text-muted-foreground'
-                        }`}>
-                          {initials}
-                        </div>
-                      )}
-                      {/* User info */}
-                      <div className="flex flex-col justify-center gap-1 min-w-0">
-                        <h4 className="text-sm font-semibold truncate">{sender_name}</h4>
-                        {sender_profile?.email && (
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <IoMailOutline className="h-3.5 w-3.5 flex-shrink-0" />
-                            <span className="truncate">{sender_profile.email}</span>
+                          }`}>
+                            {initials}
                           </div>
                         )}
+                        {/* User info */}
+                        <div className="flex flex-col justify-center gap-1 min-w-0">
+                          <h4 className="text-sm font-semibold truncate">{sender_name}</h4>
+                          {sender_profile?.email && (
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <IoMailOutline className="h-3.5 w-3.5 flex-shrink-0" />
+                              <span className="truncate">{sender_profile.email}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
+                      
+                      {/* Divider */}
+                      <div className="border-t border-border" />
+                      
+                      {/* Sent timestamp */}
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs font-medium text-muted-foreground">Sent</span>
+                        <span className="text-sm font-semibold">
+                          {new Date(msg.created_at).toLocaleString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true
+                          })}
+                        </span>
+                      </div>
+                      
+                      {/* Read timestamp */}
+                      {msg.read_at ? (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-xs font-medium text-muted-foreground">Read</span>
+                          <span className="text-sm font-semibold text-green-600 dark:text-green-400">
+                            {new Date(msg.read_at).toLocaleString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                              hour: 'numeric',
+                              minute: '2-digit',
+                              hour12: true
+                            })}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-xs font-medium text-muted-foreground">Read</span>
+                          <span className="text-sm font-medium text-muted-foreground italic">
+                            Not read yet
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </HoverCardContent>
                 </HoverCard>
 
-                {/* Message bubble */}
+              {/* Message bubble */}
                 <div className={`max-w-[70%] flex flex-col ${is_me ? 'items-end' : 'items-start'}`}>
-                  <div className={`rounded-2xl px-4 py-2 ${
+                <div className={`rounded-2xl px-4 py-2 ${
                     is_me
-                      ? 'bg-primary text-primary-foreground rounded-br-md'
-                      : 'bg-muted rounded-bl-md'
-                  }`}>
+                    ? 'bg-primary text-primary-foreground rounded-br-md'
+                    : 'bg-muted rounded-bl-md'
+                }`}>
                     <p className="text-sm whitespace-pre-wrap">{msg.message_text}</p>
-                  </div>
+                    </div>
                   <div className={`flex items-center gap-1 mt-1 ${is_me ? 'flex-row-reverse' : ''}`}>
                     <span className="text-xs text-muted-foreground">{msg_time}</span>
                     {is_me && (
                       msg.read_at 
-                        ? <IoCheckmarkDoneSharp className="h-3 w-3 text-green-500" />
-                        : <IoCheckmarkOutline className="h-3 w-3 text-muted-foreground" />
-                    )}
-                  </div>
+                      ? <IoCheckmarkDoneSharp className="h-3 w-3 text-green-500" />
+                      : <IoCheckmarkOutline className="h-3 w-3 text-muted-foreground" />
+                  )}
                 </div>
               </div>
+            </div>
             );
           })}
         </div>
@@ -641,11 +746,11 @@ function DemoChat({ on_close, receiver_user_id, reference_id, reference_type }: 
       {/* Row 4: Input */}
       <div className="border-t bg-background p-4">
         <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
-          <textarea
-            placeholder="Type a message..."
-            className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[40px] max-h-[120px]"
-            rows={1}
-            aria-label="Message input"
+            <textarea
+              placeholder="Type a message..."
+              className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[40px] max-h-[120px]"
+              rows={1}
+              aria-label="Message input"
             value={message_text}
             onChange={(e) => set_message_text(e.target.value)}
             onKeyPress={handle_key_press}
@@ -697,6 +802,25 @@ export default function HazoChatTestPage() {
   const [reference_id, set_reference_id] = useState<string>('');
   const [reference_type, set_reference_type] = useState<string>('chat');
   const [chat_key, set_chat_key] = useState<number>(0);
+  const [test_files, set_test_files] = useState<ReferenceFile[]>([]);
+
+  // fetch test files
+  useEffect(() => {
+    async function fetch_test_files() {
+      try {
+        const response = await fetch('/api/test-files');
+        const data = await response.json();
+        if (data.success) {
+          set_test_files(data.files);
+        } else {
+          console.error('Failed to fetch test files:', data.error);
+        }
+      } catch (error) {
+        console.error('Error fetching test files:', error);
+      }
+    }
+    fetch_test_files();
+  }, []);
 
   // Refresh chat with current inputs
   const handle_refresh_chat = useCallback(() => {
@@ -791,6 +915,7 @@ export default function HazoChatTestPage() {
                         receiver_user_id={selected_user_id}
                         reference_id={reference_id}
                         reference_type={reference_type}
+                        references={test_files}
                       />
                     </div>
                   </SheetContent>
@@ -815,6 +940,7 @@ export default function HazoChatTestPage() {
                       receiver_user_id={selected_user_id}
                       reference_id={reference_id}
                       reference_type={reference_type}
+                      references={test_files}
                     />
                   </DialogContent>
                 </Dialog>
@@ -902,6 +1028,7 @@ export default function HazoChatTestPage() {
                 receiver_user_id={selected_user_id}
                 reference_id={reference_id}
                 reference_type={reference_type}
+                references={test_files}
               />
             </div>
           </div>

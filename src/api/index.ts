@@ -22,6 +22,7 @@
 
 // Export handler factories
 export { createMessagesHandler } from './messages.js';
+export { createUnreadCountFunction } from './unread_count.js';
 
 // Export types
 export type {
@@ -29,5 +30,12 @@ export type {
   ChatMessageInput,
   ChatMessageRecord
 } from './types.js';
+export type {
+  UnreadCountFunctionOptions,
+  UnreadCountResult
+} from './unread_count.js';
+
+
+
 
 

@@ -8,7 +8,7 @@
  * - Delete option for sender's messages (using Button)
  * - Reference/attachment icons
  * 
- * Uses shadcn/ui Avatar, Button, and Tooltip components.
+ * Uses shadcn/ui Avatar, Button, Tooltip, and HoverCard components.
  */
 
 'use client';
@@ -31,13 +31,18 @@ import {
   TooltipContent,
   TooltipTrigger
 } from './tooltip.js';
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger
+} from './hover-card.js';
 
 // ============================================================================
 // Helper Functions
 // ============================================================================
 
 /**
- * Format timestamp with timezone
+ * Format timestamp with timezone (short format for display)
  */
 function format_timestamp(timestamp: string, timezone: string): string {
   try {
@@ -46,6 +51,19 @@ function format_timestamp(timestamp: string, timezone: string): string {
     return format(zoned_date, 'HH:mm');
   } catch {
     return format(new Date(timestamp), 'HH:mm');
+  }
+}
+
+/**
+ * Format full timestamp with timezone (for hovercard display)
+ */
+function format_full_timestamp(timestamp: string, timezone: string): string {
+  try {
+    const date = new Date(timestamp);
+    const zoned_date = toZonedTime(date, timezone);
+    return format(zoned_date, 'PPpp'); // Full date and time format
+  } catch {
+    return format(new Date(timestamp), 'PPpp');
   }
 }
 
@@ -74,6 +92,8 @@ export function ChatBubble({
   on_delete,
   on_reference_click,
   is_highlighted = false,
+  show_delete_button = true,
+  bubble_radius = 'default',
   className
 }: ChatBubbleProps) {
   const [show_delete_confirm, set_show_delete_confirm] = useState(false);
@@ -115,15 +135,73 @@ export function ChatBubble({
     >
       {/* Avatar for received messages */}
       {!is_sender && (
-        <Avatar className="cls_bubble_avatar h-8 w-8 mr-2 flex-shrink-0">
-          <AvatarImage
-            src={sender_profile?.avatar_url}
-            alt={`${sender_profile?.name || 'User'} avatar`}
-          />
-          <AvatarFallback className="text-xs">
-            {get_initials(sender_profile?.name)}
-          </AvatarFallback>
-        </Avatar>
+        <HoverCard>
+          <HoverCardTrigger asChild>
+            <Avatar className="cls_bubble_avatar h-8 w-8 mr-2 flex-shrink-0 cursor-pointer">
+              <AvatarImage
+                src={sender_profile?.avatar_url}
+                alt={`${sender_profile?.name || 'User'} avatar`}
+              />
+              <AvatarFallback className="text-xs">
+                {get_initials(sender_profile?.name)}
+              </AvatarFallback>
+            </Avatar>
+          </HoverCardTrigger>
+          <HoverCardContent className="w-80" side="right" align="start">
+            <div className="cls_hovercard_content flex flex-col gap-4">
+              {/* Profile information */}
+              {sender_profile && (
+                <div className="cls_profile_info flex items-center gap-3">
+                  <Avatar className="cls_hovercard_avatar h-12 w-12">
+                    <AvatarImage
+                      src={sender_profile.avatar_url}
+                      alt={`${sender_profile.name} avatar`}
+                    />
+                    <AvatarFallback>
+                      {get_initials(sender_profile.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="cls_profile_details flex flex-col gap-1">
+                    <span className="text-sm font-semibold">{sender_profile.name}</span>
+                    {sender_profile.email && (
+                      <span className="text-xs text-muted-foreground">
+                        {sender_profile.email}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              {/* Divider */}
+              <div className="cls_divider border-t border-border" />
+              
+              {/* Sent timestamp */}
+              <div className="cls_sent_info flex flex-col gap-1">
+                <span className="text-xs font-medium text-muted-foreground">Sent</span>
+                <span className="text-sm font-semibold">
+                  {format_full_timestamp(message.created_at, timezone)}
+                </span>
+              </div>
+              {/* Read timestamp (only if read) */}
+              {message.read_at && (
+                <div className="cls_read_info flex flex-col gap-1">
+                  <span className="text-xs font-medium text-muted-foreground">Read</span>
+                  <span className="text-sm font-semibold text-green-600 dark:text-green-400">
+                    {format_full_timestamp(message.read_at, timezone)}
+                  </span>
+                </div>
+              )}
+              {!message.read_at && (
+                <div className="cls_read_info flex flex-col gap-1">
+                  <span className="text-xs font-medium text-muted-foreground">Read</span>
+                  <span className="text-sm font-medium text-muted-foreground italic">
+                    Not read yet
+                  </span>
+                </div>
+              )}
+            </div>
+          </HoverCardContent>
+        </HoverCard>
       )}
 
       {/* Message bubble */}
@@ -140,11 +218,16 @@ export function ChatBubble({
           className={cn(
             'cls_bubble',
             'px-4 py-2 relative',
-            // Explicit rounded corners using Tailwind's arbitrary value syntax for better compatibility
-            // Top-left, Top-right, Bottom-right, Bottom-left
+            // Background colors
             is_sender
-              ? 'bg-primary text-primary-foreground rounded-[16px_16px_6px_16px]'
-              : 'bg-muted text-foreground rounded-[16px_16px_16px_6px]',
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-muted text-foreground',
+            // Bubble radius styling
+            bubble_radius === 'full'
+              ? 'rounded-2xl' // Fully round all corners (1rem = 16px)
+              : is_sender
+                ? 'rounded-[16px_16px_6px_16px]' // Default sender style
+                : 'rounded-[16px_16px_16px_6px]', // Default receiver style
             is_deleted && 'opacity-60 italic'
           )}
         >
@@ -178,7 +261,7 @@ export function ChatBubble({
           )}
 
           {/* Delete button for sender's messages */}
-          {is_sender && !is_deleted && on_delete && (
+          {show_delete_button && is_sender && !is_deleted && on_delete && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -206,32 +289,91 @@ export function ChatBubble({
         <div
           className={cn(
             'cls_bubble_meta',
-            'flex flex-row items-center gap-1 mt-1', // Explicitly set flex-row to prevent any reversal
+            'flex items-center gap-1 mt-1',
             is_sender ? 'justify-end mr-1' : 'ml-1'
           )}
+          style={{ flexDirection: 'row' }} // Explicitly force row direction to prevent any reversal
         >
           {/* Time always comes first in DOM order */}
-          <span className="cls_bubble_time text-xs text-muted-foreground order-1">
+          <span className="cls_bubble_time text-xs text-muted-foreground">
             {format_timestamp(message.created_at, timezone)}
           </span>
           {/* Read receipt double green tick comes after time - only shown when read_at is not null */}
           {is_sender && message.read_at && (
-            <IoCheckmarkDoneSharp className="h-4 w-4 text-green-500 flex-shrink-0 order-2" />
+            <IoCheckmarkDoneSharp className="h-4 w-4 text-green-500 flex-shrink-0" />
           )}
         </div>
       </div>
 
       {/* Avatar for sent messages */}
       {is_sender && (
-        <Avatar className="cls_bubble_avatar h-8 w-8 ml-2 flex-shrink-0">
-          <AvatarImage
-            src={sender_profile?.avatar_url}
-            alt="Your avatar"
-          />
-          <AvatarFallback className="text-xs bg-primary/20 text-primary">
-            {get_initials(sender_profile?.name)}
-          </AvatarFallback>
-        </Avatar>
+        <HoverCard>
+          <HoverCardTrigger asChild>
+            <Avatar className="cls_bubble_avatar h-8 w-8 ml-2 flex-shrink-0 cursor-pointer">
+              <AvatarImage
+                src={sender_profile?.avatar_url}
+                alt="Your avatar"
+              />
+              <AvatarFallback className="text-xs bg-primary/20 text-primary">
+                {get_initials(sender_profile?.name)}
+              </AvatarFallback>
+            </Avatar>
+          </HoverCardTrigger>
+          <HoverCardContent className="w-80" side="left" align="start">
+            <div className="cls_hovercard_content flex flex-col gap-4">
+              {/* Profile information */}
+              {sender_profile && (
+                <div className="cls_profile_info flex items-center gap-3">
+                  <Avatar className="cls_hovercard_avatar h-12 w-12">
+                    <AvatarImage
+                      src={sender_profile.avatar_url}
+                      alt={`${sender_profile.name} avatar`}
+                    />
+                    <AvatarFallback>
+                      {get_initials(sender_profile.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="cls_profile_details flex flex-col gap-1">
+                    <span className="text-sm font-semibold">{sender_profile.name}</span>
+                    {sender_profile.email && (
+                      <span className="text-xs text-muted-foreground">
+                        {sender_profile.email}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              {/* Divider */}
+              <div className="cls_divider border-t border-border" />
+              
+              {/* Sent timestamp */}
+              <div className="cls_sent_info flex flex-col gap-1">
+                <span className="text-xs font-medium text-muted-foreground">Sent</span>
+                <span className="text-sm font-semibold">
+                  {format_full_timestamp(message.created_at, timezone)}
+                </span>
+              </div>
+              {/* Read timestamp (only if read) */}
+              {message.read_at && (
+                <div className="cls_read_info flex flex-col gap-1">
+                  <span className="text-xs font-medium text-muted-foreground">Read</span>
+                  <span className="text-sm font-semibold text-green-600 dark:text-green-400">
+                    {format_full_timestamp(message.read_at, timezone)}
+                  </span>
+                </div>
+              )}
+              {!message.read_at && (
+                <div className="cls_read_info flex flex-col gap-1">
+                  <span className="text-xs font-medium text-muted-foreground">Read</span>
+                  <span className="text-sm font-medium text-muted-foreground italic">
+                    Not read yet
+                  </span>
+                </div>
+              )}
+            </div>
+          </HoverCardContent>
+        </HoverCard>
       )}
     </div>
   );

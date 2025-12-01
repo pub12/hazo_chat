@@ -21,7 +21,7 @@ export default function LoginPage({
 
   // Get redirect from query params (for redirect after login)
   const redirect = typeof searchParams.redirect === "string" ? searchParams.redirect : undefined;
-  
+
   // Use redirect from query params if provided, otherwise use config
   const redirectRoute = redirect || loginConfig.redirectRoute;
 

@@ -54,7 +54,7 @@ const nextConfig = {
       '.js': ['.js', '.ts', '.tsx'],
       '.jsx': ['.jsx', '.tsx'],
     };
-    
+
     // Enable package exports resolution
     config.resolve.conditionNames = ['import', 'require', 'default'];
 

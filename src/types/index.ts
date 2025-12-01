@@ -189,6 +189,12 @@ export interface HazoChatProps {
   polling_interval?: number;
   /** Number of messages per page for pagination */
   messages_per_page?: number;
+  /** Show sidebar toggle button (hamburger menu) - default: false */
+  show_sidebar_toggle?: boolean;
+  /** Show delete button on chat bubbles - default: true */
+  show_delete_button?: boolean;
+  /** Bubble border radius style - default: 'default' */
+  bubble_radius?: 'default' | 'full';
   /** Additional CSS classes */
   className?: string;
 }
@@ -204,6 +210,8 @@ export interface HazoChatHeaderProps {
   is_refreshing?: boolean;
   on_toggle_sidebar?: () => void;
   is_sidebar_open?: boolean;
+  /** Show sidebar toggle button (hamburger menu) - default: false */
+  show_sidebar_toggle?: boolean;
   className?: string;
 }
 
@@ -248,6 +256,10 @@ export interface HazoChatMessagesProps {
   on_delete_message: (message_id: string) => void;
   on_scroll_to_message?: (message_id: string) => void;
   highlighted_message_id?: string;
+  /** Show delete button on chat bubbles - default: true */
+  show_delete_button?: boolean;
+  /** Bubble border radius style - default: 'default' */
+  bubble_radius?: 'default' | 'full';
   className?: string;
 }
 
@@ -284,6 +296,10 @@ export interface ChatBubbleProps {
   on_delete?: () => void;
   on_reference_click?: (reference: ChatReferenceItem) => void;
   is_highlighted?: boolean;
+  /** Show delete button on chat bubbles - default: true */
+  show_delete_button?: boolean;
+  /** Bubble border radius style - default: 'default' */
+  bubble_radius?: 'default' | 'full';
   className?: string;
 }
 

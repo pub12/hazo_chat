@@ -13,6 +13,7 @@ export { Avatar, AvatarImage, AvatarFallback } from './avatar.js';
 export { Skeleton } from './skeleton.js';
 export { ScrollArea, ScrollBar } from './scroll-area.js';
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './tooltip.js';
+export { HoverCard, HoverCardTrigger, HoverCardContent } from './hover-card.js';
 export { Separator } from './separator.js';
 export { Badge, badge_variants, type BadgeProps } from './badge.js';
 

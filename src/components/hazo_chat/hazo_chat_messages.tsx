@@ -34,6 +34,8 @@ export function HazoChatMessages({
   on_delete_message,
   on_scroll_to_message,
   highlighted_message_id,
+  show_delete_button = true,
+  bubble_radius = 'default',
   className
 }: HazoChatMessagesProps) {
   const container_ref = useRef<HTMLDivElement>(null);
@@ -174,6 +176,8 @@ export function HazoChatMessages({
             }
             on_reference_click={handle_reference_click}
             is_highlighted={highlighted_message_id === message.id}
+            show_delete_button={show_delete_button}
+            bubble_radius={bubble_radius}
           />
         ))}
 

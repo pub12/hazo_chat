@@ -34,6 +34,7 @@ export function HazoChatHeader({
   is_refreshing,
   on_toggle_sidebar,
   is_sidebar_open,
+  show_sidebar_toggle = false,
   className
 }: HazoChatHeaderProps) {
   return (
@@ -51,7 +52,7 @@ export function HazoChatHeader({
       {/* Left: Sidebar toggle + Title */}
       <div className="cls_header_left flex items-center gap-3">
         {/* Sidebar toggle (mobile) */}
-        {on_toggle_sidebar && (
+        {show_sidebar_toggle && on_toggle_sidebar && (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button

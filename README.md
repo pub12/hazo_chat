@@ -344,6 +344,7 @@ hazo_chat requires these API endpoints:
 |----------|--------|-------------|
 | `/api/hazo_chat/messages` | GET | Fetch chat messages |
 | `/api/hazo_chat/messages` | POST | Send a new message |
+| `/api/hazo_chat/unread_count` | GET | Get unread message counts by reference_id (optional) |
 | `/api/hazo_auth/me` | GET | Get current authenticated user |
 | `/api/hazo_auth/profiles` | POST | Fetch user profiles by IDs |
 
@@ -372,6 +373,157 @@ export { GET, POST };
 
 If you need more control, implement the endpoints manually. See [SETUP_CHECKLIST.md](./SETUP_CHECKLIST.md) for detailed examples.
 
+## Library Functions
+
+hazo_chat provides server-side library functions that can be used in API routes, server components, or server actions.
+
+### hazo_chat_get_unread_count
+
+Get unread message counts grouped by reference_id for a receiver user.
+
+**Purpose:** Returns an array of reference IDs with the count of unread messages (where `read_at` is `null`) for a given receiver user ID. Useful for displaying unread message badges or notifications.
+
+**Usage:**
+
+```typescript
+import { createUnreadCountFunction } from 'hazo_chat/api';
+import { getHazoConnectSingleton } from 'hazo_connect/nextjs/setup';
+
+// Create the function using the factory
+const hazo_chat_get_unread_count = createUnreadCountFunction({
+  getHazoConnect: () => getHazoConnectSingleton()
+});
+
+// Use the function
+const unreadCounts = await hazo_chat_get_unread_count('receiver-user-id-123');
+// Returns: [
+//   { reference_id: 'ref-1', count: 5 },
+//   { reference_id: 'ref-2', count: 3 },
+//   { reference_id: '', count: 1 }  // Empty reference_id for general messages
+// ]
+```
+
+**Return Type:**
+
+```typescript
+interface UnreadCountResult {
+  reference_id: string;  // The reference ID (empty string for messages without reference)
+  count: number;         // Number of unread messages for this reference
+}
+```
+
+**Function Behavior:**
+- Only counts messages where `read_at` is `null` and `deleted_at` is `null`
+- Groups results by `reference_id`
+- Sorts results by count (descending - most unread first)
+- Returns empty array if no unread messages found
+- Returns empty array on errors (doesn't throw)
+
+**Example: API Route Implementation**
+
+```typescript
+// app/api/hazo_chat/unread_count/route.ts
+import { createUnreadCountFunction } from 'hazo_chat/api';
+import { getHazoConnectSingleton } from 'hazo_connect/nextjs/setup';
+import { NextRequest, NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
+
+const hazo_chat_get_unread_count = createUnreadCountFunction({
+  getHazoConnect: () => getHazoConnectSingleton()
+});
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const receiver_user_id = searchParams.get('receiver_user_id');
+
+    if (!receiver_user_id) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'receiver_user_id is required',
+          unread_counts: []
+        },
+        { status: 400 }
+      );
+    }
+
+    const unread_counts = await hazo_chat_get_unread_count(receiver_user_id);
+
+    return NextResponse.json({
+      success: true,
+      receiver_user_id,
+      unread_counts,
+      total_references: unread_counts.length,
+      total_unread: unread_counts.reduce((sum, item) => sum + item.count, 0)
+    });
+  } catch (error) {
+    const error_message = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: error_message,
+        unread_counts: []
+      },
+      { status: 500 }
+    );
+  }
+}
+```
+
+**Example: Server Component Usage**
+
+```typescript
+// app/chat/unread-badge.tsx
+import { createUnreadCountFunction } from 'hazo_chat/api';
+import { getHazoConnectSingleton } from 'hazo_connect/nextjs/setup';
+
+const hazo_chat_get_unread_count = createUnreadCountFunction({
+  getHazoConnect: () => getHazoConnectSingleton()
+});
+
+export default async function UnreadBadge({ 
+  receiver_user_id 
+}: { 
+  receiver_user_id: string 
+}) {
+  const unread_counts = await hazo_chat_get_unread_count(receiver_user_id);
+  const total_unread = unread_counts.reduce((sum, item) => sum + item.count, 0);
+
+  if (total_unread === 0) return null;
+
+  return (
+    <div className="flex gap-2">
+      {unread_counts.map((item) => (
+        <div key={item.reference_id || 'general'}>
+          <span>{item.reference_id || 'General'}: {item.count}</span>
+        </div>
+      ))}
+      <span>Total: {total_unread}</span>
+    </div>
+  );
+}
+```
+
+**Example: Server Action Usage**
+
+```typescript
+// app/actions/chat.ts
+'use server';
+
+import { createUnreadCountFunction } from 'hazo_chat/api';
+import { getHazoConnectSingleton } from 'hazo_connect/nextjs/setup';
+
+const hazo_chat_get_unread_count = createUnreadCountFunction({
+  getHazoConnect: () => getHazoConnectSingleton()
+});
+
+export async function getUnreadCounts(receiver_user_id: string) {
+  return await hazo_chat_get_unread_count(receiver_user_id);
+}
+```
+
 ## Props Reference
 
 ### HazoChatProps
@@ -390,6 +542,9 @@ If you need more control, implement the endpoints manually. See [SETUP_CHECKLIST
 | `title` | `string` | ❌ | - | Chat header title |
 | `subtitle` | `string` | ❌ | - | Chat header subtitle |
 | `on_close` | `() => void` | ❌ | - | Close button callback |
+| `show_sidebar_toggle` | `boolean` | ❌ | `false` | Show sidebar toggle button (hamburger menu) |
+| `show_delete_button` | `boolean` | ❌ | `true` | Show delete button on chat bubbles |
+| `bubble_radius` | `'default' \| 'full'` | ❌ | `'default'` | Bubble border radius style: `'default'` (rounded with tail) or `'full'` (fully round) |
 | `className` | `string` | ❌ | - | Additional CSS classes |
 
 ### Example with All Props
@@ -411,6 +566,186 @@ If you need more control, implement the endpoints manually. See [SETUP_CHECKLIST
   on_close={() => console.log('Chat closed')}
   className="h-[600px]"
 />
+```
+
+## Customization
+
+hazo_chat provides props to customize component appearance and behavior without needing CSS overrides. This eliminates the need for extensive CSS customizations in consuming projects.
+
+### Common Customizations
+
+#### Hide Sidebar Toggle Button (Hamburger Menu)
+
+By default, the sidebar toggle button is hidden (`show_sidebar_toggle={false}`). To show it:
+
+```tsx
+<HazoChat
+  receiver_user_id="user-123"
+  show_sidebar_toggle={true}  // Show hamburger menu button
+/>
+```
+
+#### Hide Delete Button on Chat Bubbles
+
+To hide the delete button on chat bubbles:
+
+```tsx
+<HazoChat
+  receiver_user_id="user-123"
+  show_delete_button={false}  // Hide delete button
+/>
+```
+
+#### Make Chat Bubbles Fully Round
+
+To make all chat bubbles fully round (instead of the default style with a tail):
+
+```tsx
+<HazoChat
+  receiver_user_id="user-123"
+  bubble_radius="full"  // Fully round all corners
+/>
+```
+
+### Customization Props Summary
+
+| Prop | Default | Options | Description |
+|------|--------|---------|------------|
+| `show_sidebar_toggle` | `false` | `boolean` | Show/hide the hamburger menu button |
+| `show_delete_button` | `true` | `boolean` | Show/hide delete button on chat bubbles |
+| `bubble_radius` | `'default'` | `'default' \| 'full'` | Bubble border radius style |
+
+### Example: Full Customization
+
+```tsx
+<HazoChat
+  receiver_user_id="user-123"
+  reference_id="project-456"
+  show_sidebar_toggle={false}    // Hide hamburger menu
+  show_delete_button={false}     // Hide delete buttons
+  bubble_radius="full"            // Fully round bubbles
+  title="Project Chat"
+  className="h-[600px]"
+/>
+```
+
+### Why Use Props Instead of CSS?
+
+Using props instead of CSS overrides provides:
+- **Type safety**: TypeScript will catch invalid values
+- **Consistency**: Ensures all instances use the same styling
+- **Maintainability**: Easier to update across the codebase
+- **No CSS conflicts**: Avoids specificity issues with Tailwind utilities
+
+If you need more advanced styling that isn't covered by props, you can still use CSS overrides, but props should cover most common customization needs.
+
+## Checking for Messages
+
+If you need to check whether messages exist for a given reference (without loading all messages), you can call the messages API endpoint directly. This is useful for showing indicators or badges.
+
+**Important:** The API requires `receiver_user_id` as a query parameter and returns an object response, not a direct array.
+
+### Correct API Usage Pattern
+
+```typescript
+// ✅ CORRECT: Include receiver_user_id and handle object response
+async function checkMessagesExist(
+  recipient_user_id: string,
+  reference_id: string,
+  reference_type?: string
+): Promise<boolean> {
+  const params = new URLSearchParams({
+    receiver_user_id: recipient_user_id,  // ✅ Required parameter
+    reference_id,
+    ...(reference_type && { reference_type }),
+  });
+
+  const response = await fetch(`/api/hazo_chat/messages?${params.toString()}`, {
+    credentials: 'include'
+  });
+
+  if (!response.ok) {
+    return false;
+  }
+
+  const data = await response.json();
+  
+  // ✅ Handle object response format: { success: true, messages: [], current_user_id }
+  const messages = data.messages || data;  // Handle both object and array responses
+  const has_messages_result = Array.isArray(messages) && messages.length > 0;
+  
+  return has_messages_result;
+}
+```
+
+### Common Mistakes to Avoid
+
+```typescript
+// ❌ WRONG: Missing receiver_user_id parameter
+const params = new URLSearchParams({
+  reference_id,
+  ...(reference_type && { reference_type }),
+});
+// This will return a 400 error: "receiver_user_id is required"
+
+// ❌ WRONG: Expecting direct array response
+const data = await response.json();
+const has_messages_result = Array.isArray(data) && data.length > 0;
+// This fails because API returns: { success: true, messages: [], current_user_id }
+```
+
+### Example: Custom Hook Implementation
+
+```typescript
+'use client';
+
+import { useState, useEffect } from 'react';
+
+function useChatMessagesCheck(
+  recipient_user_id: string,
+  reference_id: string,
+  reference_type?: string
+) {
+  const [has_messages, set_has_messages] = useState(false);
+  const [is_checking, set_is_checking] = useState(true);
+
+  useEffect(() => {
+    async function check() {
+      if (!recipient_user_id || !reference_id) {
+        set_is_checking(false);
+        return;
+      }
+
+      try {
+        const params = new URLSearchParams({
+          receiver_user_id: recipient_user_id,  // ✅ Required
+          reference_id,
+          ...(reference_type && { reference_type }),
+        });
+
+        const response = await fetch(
+          `/api/hazo_chat/messages?${params.toString()}`,
+          { credentials: 'include' }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          const messages = data.messages || data;  // ✅ Handle object response
+          set_has_messages(Array.isArray(messages) && messages.length > 0);
+        }
+      } catch (error) {
+        console.error('[useChatMessagesCheck] Error:', error);
+        set_has_messages(false);
+      } finally {
+        set_is_checking(false);
+      }
+    }
+
+    check();
+  }, [recipient_user_id, reference_id, reference_type]);
+
+  return { has_messages, is_checking };
+}
 ```
 
 ## Hooks
@@ -707,7 +1042,7 @@ npm run build:test-app
 import { HazoChat, useChatMessages, useChatReferences, useFileUpload } from 'hazo_chat';
 
 // API handlers (for server-side routes)
-import { createMessagesHandler } from 'hazo_chat/api';
+import { createMessagesHandler, createUnreadCountFunction } from 'hazo_chat/api';
 
 // Components only
 import { HazoChat, ChatBubble } from 'hazo_chat/components';

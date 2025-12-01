@@ -62,6 +62,9 @@ interface HazoChatInnerProps {
   realtime_mode?: RealtimeMode;
   polling_interval?: number;
   messages_per_page?: number;
+  show_sidebar_toggle?: boolean;
+  show_delete_button?: boolean;
+  bubble_radius?: 'default' | 'full';
 }
 
 function HazoChatInner({
@@ -77,7 +80,10 @@ function HazoChatInner({
   className,
   realtime_mode = DEFAULT_REALTIME_MODE,
   polling_interval = DEFAULT_POLLING_INTERVAL,
-  messages_per_page = DEFAULT_MESSAGES_PER_PAGE
+  messages_per_page = DEFAULT_MESSAGES_PER_PAGE,
+  show_sidebar_toggle = false,
+  show_delete_button = true,
+  bubble_radius = 'default'
 }: HazoChatInnerProps) {
   // Get context
   const {
@@ -278,10 +284,9 @@ function HazoChatInner({
         on_close={on_close}
         on_refresh={refresh_messages}
         is_refreshing={is_loading_messages}
-        // Only show hamburger button on mobile for sidebar toggle
-        // On desktop, document viewer is always visible, so no toggle needed
         on_toggle_sidebar={toggle_sidebar}
         is_sidebar_open={is_sidebar_open}
+        show_sidebar_toggle={show_sidebar_toggle}
       />
 
       {/* Row 2: Reference area (full width) - collapsible */}
@@ -296,7 +301,7 @@ function HazoChatInner({
             aria-label={is_references_expanded ? 'Collapse references' : 'Expand references'}
             aria-expanded={is_references_expanded}
           >
-            <h3 className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
+            <h3 className="text-[7px] font-medium text-muted-foreground uppercase tracking-wider">
               References
             </h3>
             {is_references_expanded ? (
@@ -351,14 +356,19 @@ function HazoChatInner({
             'h-8 w-6 rounded-r-md rounded-l-none border-l-0',
             'bg-background hover:bg-accent',
             'transition-all duration-300',
-            // Center vertically using flex on parent or fixed positioning
-            'top-[50%] -translate-y-1/2',
+            // Center vertically - use top 50% and transform to center
+            'top-1/2 -translate-y-1/2',
             // Hide on mobile when sidebar is closed
             (!is_sidebar_open ? 'hidden md:flex' : 'flex'),
             is_document_viewer_expanded
               ? 'left-[280px] md:left-[320px] lg:left-[380px]'
               : 'left-0'
           )}
+          style={{
+            top: '50%',
+            transform: 'translateY(-50%)',
+            WebkitTransform: 'translateY(-50%)'
+          }}
           aria-label={is_document_viewer_expanded ? 'Collapse document viewer' : 'Expand document viewer'}
         >
           {is_document_viewer_expanded ? (
@@ -379,6 +389,8 @@ function HazoChatInner({
             on_load_more={load_more}
             on_delete_message={delete_message}
             highlighted_message_id={highlighted_message_id || undefined}
+            show_delete_button={show_delete_button}
+            bubble_radius={bubble_radius}
           />
         </div>
       </div>
@@ -442,6 +454,9 @@ export function HazoChat(props: HazoChatProps) {
     realtime_mode,
     polling_interval,
     messages_per_page,
+    show_sidebar_toggle,
+    show_delete_button,
+    bubble_radius,
     className
   } = props;
 
@@ -474,6 +489,9 @@ export function HazoChat(props: HazoChatProps) {
           realtime_mode={realtime_mode}
           polling_interval={polling_interval}
           messages_per_page={messages_per_page}
+          show_sidebar_toggle={show_sidebar_toggle}
+          show_delete_button={show_delete_button}
+          bubble_radius={bubble_radius}
           className={className}
         />
       </HazoChatProvider>
