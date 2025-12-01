@@ -11,15 +11,36 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { IoDocumentOutline, IoDownloadOutline } from 'react-icons/io5';
+import { IoDocumentOutline, IoDownloadOutline, IoOpenOutline } from 'react-icons/io5';
 import { cn } from '../../lib/utils.js';
-import type { HazoChatDocumentViewerProps } from '../../types/index.js';
-import { PREVIEWABLE_TYPES } from '../../lib/constants.js';
+import type { HazoChatDocumentViewerProps, ChatReferenceItem } from '../../types/index.js';
+import { PREVIEWABLE_TYPES, MIME_TYPE_MAP } from '../../lib/constants.js';
 import { LoadingSkeleton } from '../ui/loading_skeleton.js';
+import { Button } from '../ui/button.js';
 
 // ============================================================================
 // Helper Functions
 // ============================================================================
+
+/**
+ * Infer MIME type from file name extension
+ */
+function infer_mime_type(reference: ChatReferenceItem): string | undefined {
+  // If mime_type is already provided, use it
+  if (reference.mime_type) {
+    return reference.mime_type;
+  }
+  
+  // Try to infer from file name extension
+  const name = reference.name || reference.url || '';
+  const extension = name.split('.').pop()?.toLowerCase();
+  
+  if (extension && MIME_TYPE_MAP[extension]) {
+    return MIME_TYPE_MAP[extension];
+  }
+  
+  return undefined;
+}
 
 /**
  * Check if file is previewable as image
@@ -43,6 +64,55 @@ function is_pdf(mime_type?: string): boolean {
 function is_text(mime_type?: string): boolean {
   if (!mime_type) return false;
   return PREVIEWABLE_TYPES.text.includes(mime_type);
+}
+
+// ============================================================================
+// Action Buttons Wrapper Component
+// ============================================================================
+
+interface ActionButtonsProps {
+  url: string;
+  name: string;
+  children: React.ReactNode;
+}
+
+/**
+ * Wrapper component that adds download and open in new tab buttons to viewers
+ */
+function ViewerWithActions({ url, name, children }: ActionButtonsProps) {
+  return (
+    <div className="relative w-full h-full">
+      {/* Action buttons */}
+      <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
+        <a
+          href={url}
+          download={name}
+          aria-label={`Download ${name}`}
+        >
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8 bg-background/60 backdrop-blur-sm hover:bg-background/80"
+          >
+            <IoDownloadOutline className="h-4 w-4" />
+          </Button>
+        </a>
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8 bg-background/60 backdrop-blur-sm hover:bg-background/80"
+          onClick={() => window.open(url, '_blank')}
+          aria-label={`Open ${name} in a new tab`}
+        >
+          <IoOpenOutline className="h-4 w-4" />
+        </Button>
+      </div>
+      {/* Viewer content */}
+      <div className="w-full h-full">
+        {children}
+      </div>
+    </div>
+  );
 }
 
 // ============================================================================
@@ -204,14 +274,20 @@ export function HazoChatDocumentViewer({
   reference,
   className
 }: HazoChatDocumentViewerProps) {
-  // Determine viewer type based on mime_type
+  // Infer MIME type from reference (use provided or infer from filename)
+  const inferred_mime_type = useMemo(() => {
+    if (!reference) return undefined;
+    return infer_mime_type(reference);
+  }, [reference]);
+
+  // Determine viewer type based on inferred mime_type
   const viewer_type = useMemo(() => {
     if (!reference) return 'empty';
-    if (is_pdf(reference.mime_type)) return 'pdf';
-    if (is_image(reference.mime_type)) return 'image';
-    if (is_text(reference.mime_type)) return 'text';
+    if (is_pdf(inferred_mime_type)) return 'pdf';
+    if (is_image(inferred_mime_type)) return 'image';
+    if (is_text(inferred_mime_type)) return 'text';
     return 'download';
-  }, [reference]);
+  }, [reference, inferred_mime_type]);
 
   return (
     <div
@@ -226,15 +302,21 @@ export function HazoChatDocumentViewer({
       {viewer_type === 'empty' && <EmptyState />}
 
       {viewer_type === 'pdf' && reference && (
-        <PdfViewer url={reference.url} name={reference.name} />
+        <ViewerWithActions url={reference.url} name={reference.name}>
+          <PdfViewer url={reference.url} name={reference.name} />
+        </ViewerWithActions>
       )}
 
       {viewer_type === 'image' && reference && (
-        <ImageViewer url={reference.url} name={reference.name} />
+        <ViewerWithActions url={reference.url} name={reference.name}>
+          <ImageViewer url={reference.url} name={reference.name} />
+        </ViewerWithActions>
       )}
 
       {viewer_type === 'text' && reference && (
-        <TextViewer url={reference.url} name={reference.name} />
+        <ViewerWithActions url={reference.url} name={reference.name}>
+          <TextViewer url={reference.url} name={reference.name} />
+        </ViewerWithActions>
       )}
 
       {viewer_type === 'download' && reference && (

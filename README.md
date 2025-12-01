@@ -9,7 +9,7 @@ A full-featured React chat component library for 1-1 communication with document
 - 📱 **Responsive Design** - Works on desktop and mobile with adaptive layout
 - 💬 **Real-time Messaging** - Polling or manual refresh modes for message updates with optimistic UI
 - 📎 **File Attachments** - Support for documents and images with preview
-- 📄 **Document Viewer** - Built-in PDF and image viewer with expand/collapse toggle
+- 📄 **Document Viewer** - Built-in PDF and image viewer with expand/collapse toggle, download, and open in new tab actions
 - 👤 **User Profiles** - Avatar display and user information
 - 🔄 **Infinite Scroll** - Cursor-based pagination for message history
 - ✅ **Read Receipts** - Track message read status
@@ -102,7 +102,54 @@ const config: Config = {
   ],
   theme: {
     extend: {
-      // Your theme extensions
+      // Required: Font family configuration for consistent typography
+      fontFamily: {
+        sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-mono)', 'monospace'],
+      },
+      // Required: Color variables for shadcn/ui compatibility
+      colors: {
+        background: 'var(--background)',
+        foreground: 'var(--foreground)',
+        card: {
+          DEFAULT: 'var(--card)',
+          foreground: 'var(--card-foreground)',
+        },
+        popover: {
+          DEFAULT: 'var(--popover)',
+          foreground: 'var(--popover-foreground)',
+        },
+        primary: {
+          DEFAULT: 'var(--primary)',
+          foreground: 'var(--primary-foreground)',
+        },
+        secondary: {
+          DEFAULT: 'var(--secondary)',
+          foreground: 'var(--secondary-foreground)',
+        },
+        muted: {
+          DEFAULT: 'var(--muted)',
+          foreground: 'var(--muted-foreground)',
+        },
+        accent: {
+          DEFAULT: 'var(--accent)',
+          foreground: 'var(--accent-foreground)',
+        },
+        destructive: {
+          DEFAULT: 'var(--destructive)',
+          foreground: 'var(--destructive-foreground)',
+        },
+        border: 'var(--border)',
+        input: 'var(--input)',
+        ring: 'var(--ring)',
+      },
+      // Required: Border radius configuration
+      borderRadius: {
+        lg: 'var(--radius)',
+        md: 'calc(var(--radius) - 2px)',
+        sm: 'calc(var(--radius) - 4px)',
+      },
+      // Your additional theme extensions can go here
     },
   },
   plugins: [],
@@ -110,6 +157,18 @@ const config: Config = {
 
 export default config;
 ```
+
+**Important Theme Extensions:**
+
+The `hazo_chat` component relies on specific Tailwind theme extensions to ensure consistent styling:
+
+1. **Font Families:** The `font-sans` and `font-mono` utilities must map to CSS variables for consistent typography across all consuming applications.
+
+2. **Color Variables:** All color utilities (e.g., `bg-background`, `text-foreground`, `border-border`) must map to CSS variables defined in your `globals.css`.
+
+3. **Border Radius:** The component uses `rounded-lg`, `rounded-md`, and `rounded-sm` which must map to your CSS `--radius` variable.
+
+**Note:** If you're using shadcn/ui in your project, your Tailwind config likely already includes these extensions. Simply add the `hazo_chat` package path to the `content` array.
 
 **Why This Is Required:**
 
@@ -909,6 +968,8 @@ interface ChatReferenceItem {
   message_id?: string;
 }
 ```
+
+**Note on MIME Type:** The `mime_type` property is optional. If not provided, the component will automatically infer the MIME type from the file extension (e.g., `.jpg` → `image/jpeg`, `.pdf` → `application/pdf`). This ensures document preview works even when `mime_type` is not explicitly set. Supported file extensions for inference include: `pdf`, `png`, `jpg`, `jpeg`, `gif`, `webp`, `txt`, `doc`, `docx`.
 
 ## Database Schema
 
