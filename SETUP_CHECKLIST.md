@@ -397,6 +397,79 @@ export default function ChatPage() {
 }
 ```
 
+### Step 5.3: Container Requirements
+
+**Critical:** The `HazoChat` component requires specific container dimensions to render correctly.
+
+#### Container Height Requirement
+
+The component uses `h-full`, which requires its parent container to have a **defined height**. Without this, the chat message area may collapse.
+
+**Required:** Parent container must have a fixed height:
+
+```typescript
+<div className="h-[600px]">  {/* ✅ Required: parent must have height */}
+  <HazoChat receiver_user_id={...} />
+</div>
+
+// OR
+
+<div className="h-screen">  {/* ✅ Full screen height */}
+  <HazoChat receiver_user_id={...} />
+</div>
+
+// ❌ WRONG - will cause layout issues
+<div>  {/* No height defined */}
+  <HazoChat receiver_user_id={...} />
+</div>
+```
+
+#### Container Width Requirements
+
+- **Recommended minimum width:** 500px for optimal two-column layout (document viewer + chat messages).
+- **For narrow containers (< 500px):** Document references will automatically open in a new tab when clicked instead of showing in the preview panel.
+- **Document viewer defaults to collapsed** to maximize chat space. Users can expand it using the toggle button.
+
+```typescript
+// ✅ Recommended: at least 500px width
+<div className="w-[600px] h-[600px]">
+  <HazoChat receiver_user_id={...} />
+</div>
+
+// ✅ Narrow container: documents will open in new tab
+<div className="w-[400px] h-[600px]">
+  <HazoChat receiver_user_id={...} />
+</div>
+```
+
+#### Complete Container Example
+
+```typescript
+'use client';
+
+import { HazoChat } from 'hazo_chat';
+
+export default function ChatPage() {
+  return (
+    <div className="w-[600px] h-[600px] flex-shrink-0">
+      <div className="rounded-xl border shadow-lg p-0 h-full">
+        <HazoChat 
+          receiver_user_id="user-123"
+          title="Chat"
+          className="h-full"
+        />
+      </div>
+    </div>
+  );
+}
+```
+
+**Verification:**
+- [ ] Parent container has defined height (e.g., `h-[600px]`, `h-screen`)
+- [ ] Container width is at least 500px for optimal layout (or accept narrow width behavior)
+- [ ] Component renders with proper chat message area visible
+- [ ] Document viewer toggle button is accessible
+
 ---
 
 ## 6. UI Components and Styling Setup

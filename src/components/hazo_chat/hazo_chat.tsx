@@ -12,7 +12,7 @@
 
 'use client';
 
-import React, { useCallback, useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import { IoChevronDown, IoChevronUp, IoChevronBack, IoChevronForward } from 'react-icons/io5';
 import { cn } from '../../lib/utils.js';
 import type {
@@ -165,7 +165,13 @@ function HazoChatInner({
   // -------------------------------------------------------------------------
   // Document viewer collapse state
   // -------------------------------------------------------------------------
-  const [is_document_viewer_expanded, set_is_document_viewer_expanded] = useState(true);
+  const [is_document_viewer_expanded, set_is_document_viewer_expanded] = useState(false);
+
+  // -------------------------------------------------------------------------
+  // Container width detection for narrow width handling
+  // -------------------------------------------------------------------------
+  const main_content_ref = useRef<HTMLDivElement>(null);
+  const NARROW_WIDTH_THRESHOLD = 500; // px - below this, open documents in new tab
 
   // -------------------------------------------------------------------------
   // File upload hook
@@ -260,9 +266,25 @@ function HazoChatInner({
   // -------------------------------------------------------------------------
   const handle_reference_select = useCallback(
     (reference: ChatReferenceItem) => {
+      // Check container width - if narrow, open in new tab instead of showing preview
+      if (main_content_ref.current) {
+        const container_width = main_content_ref.current.offsetWidth;
+        
+        if (container_width < NARROW_WIDTH_THRESHOLD) {
+          // Open in new tab for narrow containers
+          window.open(reference.url, '_blank');
+          return;
+        }
+      }
+      
+      // Normal behavior: select reference and show in preview
       select_reference(reference);
+      // Expand document viewer when selecting a reference in wide containers
+      if (!is_document_viewer_expanded) {
+        set_is_document_viewer_expanded(true);
+      }
     },
-    [select_reference]
+    [select_reference, is_document_viewer_expanded]
   );
 
   // -------------------------------------------------------------------------
@@ -301,7 +323,7 @@ function HazoChatInner({
             aria-label={is_references_expanded ? 'Collapse references' : 'Expand references'}
             aria-expanded={is_references_expanded}
           >
-            <h3 className="text-[7px] font-medium text-muted-foreground uppercase tracking-wider">
+            <h3 className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
               References
             </h3>
             {is_references_expanded ? (
@@ -324,7 +346,10 @@ function HazoChatInner({
       </div>
 
       {/* Row 3: Two columns (doc preview | chat history) */}
-      <div className="cls_main_content flex flex-1 overflow-hidden relative h-full min-h-0">
+      <div 
+        ref={main_content_ref}
+        className="cls_main_content flex flex-1 overflow-hidden relative h-full min-h-0"
+      >
         {/* Column 1: Document preview - collapsible */}
         <div
           className={cn(

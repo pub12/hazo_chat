@@ -316,11 +316,47 @@ This section defines the visual design standards and component behavior specific
 
 **Important:** When wrapping HazoChat in containers (e.g., Card components):
 
-1. **Avoid nested `overflow-hidden`**: Nested overflow-hidden containers can clip rounded corners. Use overflow-hidden only on the HazoChat component itself.
+1. **Container Height Requirement:**
+   - The `HazoChat` component uses `h-full` which requires its parent container to have a **defined height**.
+   - **Required:** Parent container must have a fixed height (e.g., `h-[600px]`, `h-screen`, `min-h-[500px]`).
+   - **Example:**
+     ```tsx
+     <div className="h-[600px]">  {/* Required: parent must have height */}
+       <HazoChat receiver_user_id={...} />
+     </div>
+     ```
+   - **Without a defined height**, the component may not render correctly and the chat message area may collapse.
 
-2. **Padding**: If wrapping in a Card, ensure proper padding is maintained. Avoid `p-0` on CardContent as it may affect internal spacing.
+2. **Container Width Requirements:**
+   - **Recommended minimum width:** 500px for optimal two-column layout (document viewer + chat messages).
+   - **For narrow containers (< 500px):** Document references will automatically open in a new tab when clicked instead of showing in the preview panel.
+   - **Document viewer defaults to collapsed** to maximize chat space. Users can expand it using the toggle button.
+   - **Example:**
+     ```tsx
+     {/* Recommended: at least 500px width */}
+     <div className="w-[600px] h-[600px]">
+       <HazoChat receiver_user_id={...} />
+     </div>
+     ```
 
-3. **Tailwind Configuration**: Ensure `./node_modules/hazo_chat/dist/**/*.{js,ts,jsx,tsx}` is included in your Tailwind `content` array so all utility classes (including `rounded-*` classes) are compiled.
+3. **Avoid nested `overflow-hidden`**: Nested overflow-hidden containers can clip rounded corners. Use overflow-hidden only on the HazoChat component itself.
+
+4. **Padding**: If wrapping in a Card, ensure proper padding is maintained. Avoid `p-0` on CardContent as it may affect internal spacing.
+
+5. **Tailwind Configuration**: Ensure `./node_modules/hazo_chat/dist/**/*.{js,ts,jsx,tsx}` is included in your Tailwind `content` array so all utility classes (including `rounded-*` classes) are compiled.
+
+**Complete Container Example:**
+```tsx
+<div className="w-[600px] h-[600px] flex-shrink-0">
+  <div className="rounded-xl border shadow-lg p-0 h-full">
+    <HazoChat 
+      receiver_user_id="user-123"
+      title="Chat"
+      className="h-full"
+    />
+  </div>
+</div>
+```
 
 #### Typography
 
