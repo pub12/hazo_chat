@@ -83,19 +83,56 @@ export default function RootLayout({ children }) {
 
 ### Required Tailwind Configuration
 
-Your `tailwind.config.ts` must include hazo_chat package paths in content:
+Your `tailwind.config.ts` must include hazo_chat package paths in the `content` array. This ensures that Tailwind CSS scans the component library files and includes all utility classes in your final CSS bundle.
+
+**Complete Configuration Example:**
 
 ```typescript
-export default {
+import type { Config } from 'tailwindcss';
+
+const config: Config = {
   content: [
-    // ... your existing paths
-    './node_modules/hazo_chat/dist/**/*.{js,ts,jsx,tsx}',
+    // Your application's content paths
+    './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/components/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/app/**/*.{js,ts,jsx,tsx,mdx}',
+    
+    // Add this line to scan the hazo_chat package
+    './node_modules/hazo_chat/dist/**/*.js',
   ],
-  // ... rest of config
+  theme: {
+    extend: {
+      // Your theme extensions
+    },
+  },
+  plugins: [],
 };
+
+export default config;
 ```
 
-**Important:** Without this configuration, Tailwind classes used by hazo_chat components may not be compiled, causing styling issues.
+**Why This Is Required:**
+
+The `hazo_chat` component library uses Tailwind CSS utility classes (e.g., `flex`, `h-full`, `bg-background`, `p-4`) for all styling. These classes are not compiled into CSS by default. By adding the package path to your Tailwind `content` array, Tailwind will:
+
+1. Scan all JavaScript files in the `hazo_chat` package
+2. Extract all Tailwind utility classes used in the components
+3. Include them in your application's final CSS bundle
+4. Ensure the component styles are correctly applied at runtime
+
+**Important:** Without this configuration, Tailwind classes used by hazo_chat components will not be compiled, causing styling issues such as:
+- Missing styles (components appear unstyled)
+- Broken layouts
+- Incorrect spacing and colors
+- Non-functional responsive breakpoints
+
+**Troubleshooting:**
+
+If you're experiencing styling issues after adding the configuration:
+1. Restart your development server
+2. Clear your Next.js cache: `rm -rf .next`
+3. Verify the path matches your `node_modules` location
+4. Check that `tailwindcss` is installed: `npm list tailwindcss`
 
 ### Required CSS Variables
 
