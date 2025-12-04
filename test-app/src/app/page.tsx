@@ -68,6 +68,9 @@ import {
   HoverCardTrigger,
 } from '@/components/ui/hover-card';
 import { IoMailOutline } from 'react-icons/io5';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - webpack alias resolves this path
+import { HazoChat } from 'hazo_chat/components';
 
 // ============================================================================
 // Demo Chat Component with Hardcoded Messages
@@ -909,13 +912,25 @@ export default function HazoChatTestPage() {
                   </SheetTrigger>
                   <SheetContent side="right" className="w-full sm:max-w-xl p-0">
                     <div className="h-full">
-                      <DemoChat 
+                      <HazoChat
                         key={`sheet-${chat_key}`}
-                        on_close={() => set_is_sheet_open(false)} 
                         receiver_user_id={selected_user_id}
                         reference_id={reference_id}
                         reference_type={reference_type}
-                        references={test_files}
+                        additional_references={test_files.map(file => ({
+                          id: file.id,
+                          type: 'document' as const,
+                          scope: 'field' as const,
+                          name: file.name,
+                          url: file.url,
+                          mime_type: file.mime_type,
+                          file_size: file.file_size
+                        }))}
+                        title="Chat with Team"
+                        subtitle="Project Discussion"
+                        on_close={() => set_is_sheet_open(false)}
+                        show_sidebar_toggle={false}
+                        show_delete_button={true}
                       />
                     </div>
                   </SheetContent>
@@ -935,12 +950,24 @@ export default function HazoChatTestPage() {
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="max-w-4xl h-[80vh] p-0 gap-0">
-                    <DemoChat 
+                    <HazoChat
                       key={`dialog-${chat_key}`}
                       receiver_user_id={selected_user_id}
                       reference_id={reference_id}
                       reference_type={reference_type}
-                      references={test_files}
+                      additional_references={test_files.map(file => ({
+                        id: file.id,
+                        type: 'document' as const,
+                        scope: 'field' as const,
+                        name: file.name,
+                        url: file.url,
+                        mime_type: file.mime_type,
+                        file_size: file.file_size
+                      }))}
+                      title="Chat with Team"
+                      subtitle="Project Discussion"
+                      show_sidebar_toggle={false}
+                      show_delete_button={true}
                     />
                   </DialogContent>
                 </Dialog>
@@ -1022,13 +1049,25 @@ export default function HazoChatTestPage() {
           {/* Chat Container - Embedded View */}
           <div className="lg:col-span-2">
             <div className="cls_chat_container bg-white dark:bg-slate-900 rounded-xl shadow-lg border overflow-hidden h-[700px]">
-              <DemoChat 
+              <HazoChat
                 key={`embedded-${chat_key}`}
-                on_close={handle_close}
                 receiver_user_id={selected_user_id}
                 reference_id={reference_id}
                 reference_type={reference_type}
-                references={test_files}
+                additional_references={test_files.map(file => ({
+                  id: file.id,
+                  type: 'document' as const,
+                  scope: 'field' as const,
+                  name: file.name,
+                  url: file.url,
+                  mime_type: file.mime_type,
+                  file_size: file.file_size
+                }))}
+                title="Chat with Team"
+                subtitle="Project Discussion"
+                on_close={handle_close}
+                show_sidebar_toggle={true}
+                show_delete_button={true}
               />
             </div>
           </div>

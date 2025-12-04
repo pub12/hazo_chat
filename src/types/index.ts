@@ -254,6 +254,7 @@ export interface HazoChatMessagesProps {
   has_more: boolean;
   on_load_more: () => void;
   on_delete_message: (message_id: string) => void;
+  on_mark_as_read?: (message_id: string) => void;
   on_scroll_to_message?: (message_id: string) => void;
   highlighted_message_id?: string;
   /** Show delete button on chat bubbles - default: true */

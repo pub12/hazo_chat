@@ -112,6 +112,7 @@ function HazoChatInner({
     load_more,
     send_message,
     delete_message,
+    mark_as_read,
     polling_status,
     refresh: refresh_messages
   } = useChatMessages({
@@ -318,8 +319,13 @@ function HazoChatInner({
       )}>
         <div className="cls_references_container px-3 py-2">
           <button
-            onClick={() => set_is_references_expanded(!is_references_expanded)}
-            className="cls_references_header flex items-center justify-between w-full gap-2 mb-1.5 hover:bg-muted/50 rounded px-1 -mx-1 transition-colors"
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              set_is_references_expanded((prev) => !prev);
+            }}
+            className="cls_references_header flex items-center justify-between w-full gap-2 mb-1.5 hover:bg-muted/50 rounded px-1 -mx-1 transition-colors cursor-pointer"
             aria-label={is_references_expanded ? 'Collapse references' : 'Expand references'}
             aria-expanded={is_references_expanded}
           >
@@ -371,37 +377,46 @@ function HazoChatInner({
         </div>
 
         {/* Toggle button for document viewer - show on desktop, hide on mobile when sidebar closed */}
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => set_is_document_viewer_expanded(!is_document_viewer_expanded)}
-          className={cn(
-            'cls_doc_viewer_toggle',
-            'absolute z-10',
-            'h-8 w-6 rounded-r-md rounded-l-none border-l-0',
-            'bg-background hover:bg-accent',
-            'transition-all duration-300',
-            // Center vertically - use top 50% and transform to center
-            'top-1/2 -translate-y-1/2',
-            // Hide on mobile when sidebar is closed
-            (!is_sidebar_open ? 'hidden md:flex' : 'flex'),
-            is_document_viewer_expanded
-              ? 'left-[280px] md:left-[320px] lg:left-[380px]'
-              : 'left-0'
-          )}
-          style={{
-            top: '50%',
-            transform: 'translateY(-50%)',
-            WebkitTransform: 'translateY(-50%)'
-          }}
-          aria-label={is_document_viewer_expanded ? 'Collapse document viewer' : 'Expand document viewer'}
-        >
-          {is_document_viewer_expanded ? (
-            <IoChevronBack className="h-4 w-4" />
-          ) : (
-            <IoChevronForward className="h-4 w-4" />
-          )}
-        </Button>
+        {(!is_sidebar_open || is_sidebar_open) && (
+          <Button
+            variant="outline"
+            size="icon"
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              set_is_document_viewer_expanded((prev) => !prev);
+            }}
+            className={cn(
+              'cls_doc_viewer_toggle',
+              'absolute z-30 pointer-events-auto',
+              'h-8 w-6 rounded-r-md rounded-l-none border-l-0',
+              'bg-background hover:bg-accent border',
+              'shadow-sm',
+              'transition-all duration-300',
+              'flex items-center justify-center',
+              // Center vertically
+              'top-1/2',
+              '-translate-y-1/2',
+              // Hide on mobile when sidebar is closed, show on desktop
+              (!is_sidebar_open ? 'hidden md:flex' : 'flex'),
+              // Position based on expanded state - ensure button is always visible
+              is_document_viewer_expanded
+                ? 'left-[280px] md:left-[320px] lg:left-[380px]'
+                : 'left-0'
+            )}
+            style={{
+              transform: 'translateY(-50%)',
+            }}
+            aria-label={is_document_viewer_expanded ? 'Collapse document viewer' : 'Expand document viewer'}
+          >
+            {is_document_viewer_expanded ? (
+              <IoChevronBack className="h-4 w-4" />
+            ) : (
+              <IoChevronForward className="h-4 w-4" />
+            )}
+          </Button>
+        )}
 
         {/* Column 2: Chat history */}
         <div className="cls_chat_column flex flex-col flex-1 min-w-0">
@@ -413,6 +428,7 @@ function HazoChatInner({
             has_more={has_more}
             on_load_more={load_more}
             on_delete_message={delete_message}
+            on_mark_as_read={mark_as_read}
             highlighted_message_id={highlighted_message_id || undefined}
             show_delete_button={show_delete_button}
             bubble_radius={bubble_radius}

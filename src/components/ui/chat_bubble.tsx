@@ -19,7 +19,8 @@ import { toZonedTime } from 'date-fns-tz';
 import {
   IoTrashOutline,
   IoDocumentAttachSharp,
-  IoCheckmarkDoneSharp
+  IoCheckmarkDoneSharp,
+  IoCheckmark
 } from 'react-icons/io5';
 import { cn } from '../../lib/utils.js';
 import type { ChatBubbleProps, ChatReferenceItem } from '../../types/index.js';
@@ -42,15 +43,40 @@ import {
 // ============================================================================
 
 /**
+ * Check if a date is today
+ */
+function is_today(date: Date): boolean {
+  const today = new Date();
+  return (
+    date.getDate() === today.getDate() &&
+    date.getMonth() === today.getMonth() &&
+    date.getFullYear() === today.getFullYear()
+  );
+}
+
+/**
  * Format timestamp with timezone (short format for display)
+ * Includes date prefix in dd/MMM format if message is from a previous day
  */
 function format_timestamp(timestamp: string, timezone: string): string {
   try {
     const date = new Date(timestamp);
     const zoned_date = toZonedTime(date, timezone);
-    return format(zoned_date, 'HH:mm');
+    
+    // Check if message is from today
+    if (is_today(zoned_date)) {
+      return format(zoned_date, 'HH:mm');
+    } else {
+      // Include date prefix for messages before today
+      return format(zoned_date, 'dd/MMM HH:mm');
+    }
   } catch {
-    return format(new Date(timestamp), 'HH:mm');
+    const date = new Date(timestamp);
+    if (is_today(date)) {
+      return format(date, 'HH:mm');
+    } else {
+      return format(date, 'dd/MMM HH:mm');
+    }
   }
 }
 
@@ -298,9 +324,18 @@ export function ChatBubble({
           <span className="cls_bubble_time text-xs text-muted-foreground">
             {format_timestamp(message.created_at, timezone)}
           </span>
-          {/* Read receipt double green tick comes after time - only shown when read_at is not null */}
-          {is_sender && message.read_at && (
-            <IoCheckmarkDoneSharp className="h-4 w-4 text-green-500 flex-shrink-0" />
+          {/* Status indicators for sender's messages */}
+          {is_sender && (
+            <>
+              {/* Read receipt: double green tick - shown when message has been read */}
+              {message.read_at && (
+                <IoCheckmarkDoneSharp className="h-4 w-4 text-green-500 flex-shrink-0" />
+              )}
+              {/* Sent indicator: single grey tick - shown when message sent but not read */}
+              {!message.read_at && (
+                <IoCheckmark className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              )}
+            </>
           )}
         </div>
       </div>

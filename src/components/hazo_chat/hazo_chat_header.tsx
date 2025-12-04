@@ -11,7 +11,7 @@
 
 'use client';
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import { IoClose, IoMenuOutline, IoRefresh } from 'react-icons/io5';
 import { cn } from '../../lib/utils.js';
 import type { HazoChatHeaderProps } from '../../types/index.js';
@@ -37,6 +37,18 @@ export function HazoChatHeader({
   show_sidebar_toggle = false,
   className
 }: HazoChatHeaderProps) {
+  // Handle close button click - ensure event is properly handled
+  const handle_close_click = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // Ensure on_close is called
+      if (on_close) {
+        on_close();
+      }
+    },
+    [on_close]
+  );
   return (
     <header
       className={cn(
@@ -128,7 +140,8 @@ export function HazoChatHeader({
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={on_close}
+                onClick={handle_close_click}
+                type="button"
                 className={cn(
                   'cls_header_close',
                   'h-8 w-8 rounded-md',

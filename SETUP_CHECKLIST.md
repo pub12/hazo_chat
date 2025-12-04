@@ -132,6 +132,41 @@ const { GET, POST } = createMessagesHandler({
 export { GET, POST };
 ```
 
+### Step 4.1.5: Mark as Read API (Automatic Read Receipts)
+
+**File: `src/app/api/hazo_chat/messages/[id]/read/route.ts`**
+
+```typescript
+/**
+ * API route to mark a chat message as read
+ * Uses the exportable handler from hazo_chat package
+ * Supports PATCH for marking messages as read
+ */
+
+export const dynamic = 'force-dynamic';
+
+import { NextRequest } from 'next/server';
+import { createMarkAsReadHandler } from 'hazo_chat/api';
+import { getHazoConnectSingleton } from 'hazo_connect/nextjs/setup';
+
+// Create handler using the exportable factory from hazo_chat
+const { PATCH: patchHandler } = createMarkAsReadHandler({
+  getHazoConnect: () => getHazoConnectSingleton()
+});
+
+// Wrapper to handle Next.js App Router params
+async function PATCH(
+  request: NextRequest,
+  context: { params: { id: string } | Promise<{ id: string }> }
+) {
+  return patchHandler(request, context);
+}
+
+export { PATCH };
+```
+
+**Note:** This endpoint is called automatically by the `HazoChat` component when messages become visible in the viewport. It uses the Intersection Observer API to detect visibility and marks messages as read when they are at least 50% visible.
+
 ### Step 4.2: Auth Me API
 
 **File: `src/app/api/hazo_auth/me/route.ts`**
@@ -327,6 +362,7 @@ export async function GET(request: NextRequest) {
 | Endpoint | Method | File | Purpose |
 |----------|--------|------|---------|
 | `/api/hazo_chat/messages` | GET, POST | `api/hazo_chat/messages/route.ts` | Message CRUD |
+| `/api/hazo_chat/messages/[id]/read` | PATCH | `api/hazo_chat/messages/[id]/read/route.ts` | Mark message as read (automatic) |
 | `/api/hazo_chat/unread_count` | GET | `api/hazo_chat/unread_count/route.ts` | Get unread counts (optional) |
 | `/api/hazo_auth/me` | GET | `api/hazo_auth/me/route.ts` | Get current user |
 | `/api/hazo_auth/profiles` | POST | `api/hazo_auth/profiles/route.ts` | Get user profiles |
@@ -336,6 +372,7 @@ export async function GET(request: NextRequest) {
 - [ ] `GET /api/hazo_auth/me` returns user data when logged in
 - [ ] `POST /api/hazo_auth/profiles` returns profiles for given IDs
 - [ ] `GET /api/hazo_chat/messages?receiver_user_id=xxx` works
+- [ ] `PATCH /api/hazo_chat/messages/[message-id]/read` marks message as read
 - [ ] `GET /api/hazo_chat/unread_count?receiver_user_id=xxx` returns unread counts (if implemented)
 
 ---

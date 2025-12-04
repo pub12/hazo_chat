@@ -21,7 +21,7 @@
  */
 
 // Export handler factories
-export { createMessagesHandler } from './messages.js';
+export { createMessagesHandler, createMarkAsReadHandler } from './messages.js';
 export { createUnreadCountFunction } from './unread_count.js';
 
 // Export types

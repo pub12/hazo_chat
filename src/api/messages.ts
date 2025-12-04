@@ -22,7 +22,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { createCrudService } from 'hazo_connect/server';
+import { createCrudService, getSqliteAdminService } from 'hazo_connect/server';
 import type { HazoConnectAdapter } from 'hazo_connect';
 import type { MessagesHandlerOptions, ChatMessageInput, ChatMessageRecord } from './types.js';
 
@@ -261,4 +261,155 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
   }
 
   return { GET, POST };
+}
+
+/**
+ * Creates a PATCH handler for marking a message as read
+ * 
+ * This handler should be used in a Next.js API route like:
+ * /api/hazo_chat/messages/[id]/read/route.ts
+ * 
+ * @param options - Configuration options
+ * @returns PATCH handler function
+ */
+export function createMarkAsReadHandler(options: MessagesHandlerOptions) {
+  const { getHazoConnect, getUserIdFromRequest } = options;
+
+  /**
+   * PATCH handler - Mark a message as read
+   * 
+   * Route params:
+   * - id (required): The message ID to mark as read
+   * 
+   * Note: In Next.js 13+ App Router, params may be a Promise
+   */
+  async function PATCH(
+    request: NextRequest,
+    context: { params: { id: string } | Promise<{ id: string }> }
+  ): Promise<NextResponse> {
+    try {
+      // Get current user ID
+      const current_user_id = getUserIdFromRequest
+        ? await getUserIdFromRequest(request)
+        : await defaultGetUserIdFromRequest();
+
+      if (!current_user_id) {
+        console.error('[hazo_chat/messages/[id]/read PATCH] No user ID - not authenticated');
+        return NextResponse.json(
+          { success: false, error: 'User not authenticated' },
+          { status: 401 }
+        );
+      }
+
+      // Handle params as Promise (Next.js 15+) or direct object (Next.js 13-14)
+      const params = context.params instanceof Promise ? await context.params : context.params;
+      const message_id = params.id;
+
+      if (!message_id) {
+        console.error('[hazo_chat/messages/[id]/read PATCH] Missing message ID');
+        return NextResponse.json(
+          { success: false, error: 'Message ID is required' },
+          { status: 400 }
+        );
+      }
+
+      console.log('[hazo_chat/messages/[id]/read PATCH] Marking message as read:', {
+        message_id,
+        current_user_id,
+      });
+
+      // Get hazo_connect instance and create CRUD service
+      const hazoConnect = getHazoConnect() as HazoConnectAdapter;
+      const chatService = createCrudService<ChatMessageRecord>(hazoConnect, 'hazo_chat');
+
+      // First, fetch the message to verify ownership
+      let message: ChatMessageRecord | null = null;
+      try {
+        const messages = await chatService.list((qb) =>
+          qb.select('*').where('id', 'eq', message_id)
+        );
+        message = messages[0] || null;
+      } catch (dbError) {
+        console.error('[hazo_chat/messages/[id]/read PATCH] Database error fetching message:', dbError);
+        throw dbError;
+      }
+
+      if (!message) {
+        console.error('[hazo_chat/messages/[id]/read PATCH] Message not found:', message_id);
+        return NextResponse.json(
+          { success: false, error: 'Message not found' },
+          { status: 404 }
+        );
+      }
+
+      // Verify that the current user is the receiver (only receivers can mark as read)
+      if (message.receiver_user_id !== current_user_id) {
+        console.error('[hazo_chat/messages/[id]/read PATCH] User is not the receiver:', {
+          message_id,
+          current_user_id,
+          receiver_user_id: message.receiver_user_id,
+        });
+        return NextResponse.json(
+          { success: false, error: 'Unauthorized - only the receiver can mark messages as read' },
+          { status: 403 }
+        );
+      }
+
+      // Don't update if already read
+      if (message.read_at) {
+        console.log('[hazo_chat/messages/[id]/read PATCH] Message already read:', message_id);
+        return NextResponse.json({
+          success: true,
+          message: {
+            ...message,
+            read_at: message.read_at,
+          },
+        });
+      }
+
+      // Update the read_at timestamp
+      // Use SQLite admin service's updateRows method for reliable updates
+      const now = new Date().toISOString();
+      try {
+        // Use the SQLite admin service which has updateRows method
+        const sqliteService = getSqliteAdminService();
+        const updated_rows = await sqliteService.updateRows(
+          'hazo_chat',
+          { id: message_id }, // criteria: update where id matches
+          { read_at: now, changed_at: now } // data to update
+        );
+        
+        if (updated_rows.length === 0) {
+          console.warn('[hazo_chat/messages/[id]/read PATCH] No rows updated - message may not exist:', message_id);
+          // Don't throw error, just log warning - message might have been deleted
+        } else {
+          console.log('[hazo_chat/messages/[id]/read PATCH] Successfully updated', updated_rows.length, 'row(s)');
+        }
+      } catch (dbError) {
+        console.error('[hazo_chat/messages/[id]/read PATCH] Database error updating message:', dbError);
+        throw dbError;
+      }
+
+      console.log('[hazo_chat/messages/[id]/read PATCH] Message marked as read successfully:', message_id);
+
+      return NextResponse.json({
+        success: true,
+        message: {
+          ...message,
+          read_at: now,
+          changed_at: now,
+        },
+      });
+    } catch (error) {
+      const error_message = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[hazo_chat/messages/[id]/read PATCH] Error:', error_message, error);
+      
+      return NextResponse.json(
+        { success: false, error: 'Failed to mark message as read' },
+        { status: 500 }
+      );
+    }
+  }
+
+  return { PATCH };
 }

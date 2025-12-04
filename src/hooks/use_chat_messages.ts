@@ -255,7 +255,12 @@ export function useChatMessages({
           ? await transform_messages(db_messages, user_id)
           : db_messages.map(msg => ({ ...msg, is_sender: false, send_status: 'sent' as const }));
         
-        set_messages(transformed);
+        // Sort messages in ascending order (oldest first, newest last)
+        const sorted = transformed.sort((a, b) => 
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
+        
+        set_messages(sorted);
         set_has_more(db_messages.length >= messages_per_page);
         cursor_ref.current = db_messages.length;
         retry_count_ref.current = 0;
@@ -289,7 +294,11 @@ export function useChatMessages({
       const transformed = await transform_messages(db_messages, current_user_id);
 
       if (is_mounted_ref.current) {
-        set_messages(transformed);
+        // Sort messages in ascending order (oldest first, newest last)
+        const sorted = transformed.sort((a, b) => 
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
+        set_messages(sorted);
         set_has_more(false); // Simplified - loaded all
         cursor_ref.current = db_messages.length;
       }
@@ -437,8 +446,14 @@ export function useChatMessages({
         send_status: 'sending'
       };
 
-      // Add optimistic message to state
-      set_messages((prev) => [...prev, optimistic_message]);
+      // Add optimistic message to state (will be sorted when real message arrives)
+      set_messages((prev) => {
+        const updated = [...prev, optimistic_message];
+        // Sort to maintain chronological order
+        return updated.sort((a, b) => 
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
+      });
 
       try {
         const response = await fetch(`${api_base_url}/messages`, {
@@ -583,19 +598,30 @@ export function useChatMessages({
       }
 
       try {
+        console.log('[useChatMessages] Marking message as read:', message_id);
         const response = await fetch(`${api_base_url}/messages/${message_id}/read`, {
           method: 'PATCH',
           credentials: 'include'
         });
 
-        if (response.ok && is_mounted_ref.current) {
+        if (!response.ok) {
+          const error_text = await response.text();
+          console.error('[useChatMessages] Mark as read failed:', response.status, error_text);
+          return;
+        }
+
+        const data = await response.json();
+        if (data.success && is_mounted_ref.current) {
+          console.log('[useChatMessages] Message marked as read successfully:', message_id, data.message?.read_at);
           set_messages((prev) =>
             prev.map((msg) =>
               msg.id === message_id
-                ? { ...msg, read_at: new Date().toISOString() }
+                ? { ...msg, read_at: data.message?.read_at || new Date().toISOString() }
                 : msg
             )
           );
+        } else {
+          console.error('[useChatMessages] Mark as read response not successful:', data);
         }
       } catch (err) {
         console.error('[useChatMessages] Mark as read error:', err);

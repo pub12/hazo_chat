@@ -12,7 +12,7 @@ A full-featured React chat component library for 1-1 communication with document
 - 📄 **Document Viewer** - Built-in PDF and image viewer with expand/collapse toggle, download, and open in new tab actions
 - 👤 **User Profiles** - Avatar display and user information
 - 🔄 **Infinite Scroll** - Cursor-based pagination for message history
-- ✅ **Read Receipts** - Track message read status
+- ✅ **Read Receipts** - Automatic mark-as-read when messages become visible using Intersection Observer
 - 🗑️ **Soft Delete** - Delete messages with undo capability
 - 🎨 **Customizable** - TailwindCSS-based theming
 - 🚀 **API-First** - No server-side dependencies in client components
@@ -242,19 +242,28 @@ This section defines the visual design standards and component behavior specific
 
 **Message Timestamp Display:**
 - Location: Chat bubble footer (`ChatBubble`)
-- Only timestamp is displayed (no status icons for sent/unread messages)
 - Font size: `text-xs`
 - Color: `text-muted-foreground`
-- Format: 24-hour format (e.g., "10:37 AM", "15:51")
+- Time format: 24-hour format (e.g., "10:37", "15:51")
+- Date prefix: Messages before today show date in `dd/MMM` format (e.g., "02/Dec 10:37")
 - Timezone: Respects `timezone` prop (default: "GMT+10")
 
-**Read Receipt Indicator:**
+**Message Status Indicators (Sender's Messages Only):**
 - Location: Chat bubble footer, after timestamp
-- Icon: `IoCheckmarkDoneSharp` (from `react-icons/io5`)
-- Size: `h-4 w-4` (16px × 16px)
-- Color: `text-green-500`
-- Display condition: Only shown when `read_at` is not null AND message is from sender
 - Position: After timestamp with `gap-1` spacing
+- Size: `h-4 w-4` (16px × 16px)
+
+**Sent Indicator (Grey Single Check):**
+- Icon: `IoCheckmark` (from `react-icons/io5`)
+- Color: `text-muted-foreground` (grey)
+- Display condition: Shown when message is sent but `read_at` is null
+- Meaning: Message delivered but not yet read by recipient
+
+**Read Receipt (Green Double Check):**
+- Icon: `IoCheckmarkDoneSharp` (from `react-icons/io5`)
+- Color: `text-green-500` (green)
+- Display condition: Only shown when `read_at` is not null
+- Meaning: Message has been read by recipient
 
 #### Component Behavior
 
@@ -292,6 +301,20 @@ This section defines the visual design standards and component behavior specific
 - Transition: `transition-all duration-300 ease-in-out`
 - Indicator: Chevron icon (`IoChevronDown` when collapsed, `IoChevronUp` when expanded)
 - Default state: Collapsed when no references, expanded when references exist
+
+**Automatic Mark-as-Read:**
+- Detection: Uses Intersection Observer API to detect when messages become visible
+- Trigger threshold: Messages marked as read when 50% visible in the ScrollArea viewport
+- Scope: Only marks messages where the current user is the receiver (not the sender)
+- State tracking: Prevents duplicate marking using in-memory Set
+- API endpoint: Requires `PATCH /api/hazo_chat/messages/[id]/read` route
+- Visual indicator: Green double-checkmark (IoCheckmarkDoneSharp) appears after timestamp
+- Automatic: No user action required - messages are marked as read automatically when scrolled into view
+
+**Note:** The mark-as-read functionality requires:
+1. The `HazoChat` component (includes all hooks and logic)
+2. The API route for marking messages as read (see API Routes Setup below)
+3. Messages must be received by the current user (messages sent by current user are not marked)
 
 #### Layout Standards
 
@@ -476,6 +499,7 @@ hazo_chat requires these API endpoints:
 |----------|--------|-------------|
 | `/api/hazo_chat/messages` | GET | Fetch chat messages |
 | `/api/hazo_chat/messages` | POST | Send a new message |
+| `/api/hazo_chat/messages/[id]/read` | PATCH | Mark a message as read (automatic) |
 | `/api/hazo_chat/unread_count` | GET | Get unread message counts by reference_id (optional) |
 | `/api/hazo_auth/me` | GET | Get current authenticated user |
 | `/api/hazo_auth/profiles` | POST | Fetch user profiles by IDs |
@@ -499,6 +523,34 @@ const { GET, POST } = createMessagesHandler({
 });
 
 export { GET, POST };
+```
+
+```typescript
+// app/api/hazo_chat/messages/[id]/read/route.ts
+import { NextRequest } from 'next/server';
+import { createMarkAsReadHandler } from 'hazo_chat/api';
+import { getHazoConnectSingleton } from 'hazo_connect/nextjs/setup';
+
+export const dynamic = 'force-dynamic';
+
+const { PATCH } = createMarkAsReadHandler({
+  getHazoConnect: () => getHazoConnectSingleton(),
+  // Optional: custom authentication
+  getUserIdFromRequest: async (request) => {
+    // Return user ID from your auth system
+    return request.cookies.get('user_id')?.value || null;
+  }
+});
+
+// Wrapper to handle Next.js App Router params
+async function handlePATCH(
+  request: NextRequest,
+  context: { params: { id: string } | Promise<{ id: string }> }
+) {
+  return PATCH(request, context);
+}
+
+export { handlePATCH as PATCH };
 ```
 
 ### Custom Implementation
