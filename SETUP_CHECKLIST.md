@@ -56,12 +56,141 @@ npm install react react-dom next
 
 ## 3. Database Setup
 
-### Step 3.1: Create hazo_chat Table
+### Step 3.1: PostgreSQL Setup (Recommended)
 
-Run this SQL to create the chat messages table:
+For PostgreSQL databases, follow these steps to create the schema with UUID types, enums, and proper defaults.
+
+#### Step 3.1.1: Enable UUID Extension
+
+First, enable the UUID extension for generating UUIDs:
 
 ```sql
--- hazo_chat table for storing chat messages
+-- Enable UUID extension (required for gen_random_uuid())
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- OR for PostgreSQL 13+, use pgcrypto extension
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+```
+
+#### Step 3.1.2: Create Enum Types (Optional but Recommended)
+
+Create enum types for reference types to ensure data integrity:
+
+```sql
+-- Create enum for reference types
+CREATE TYPE hazo_enum_chat_type AS ENUM ('chat', 'field', 'project', 'support', 'general');
+
+-- Note: If you need to add more enum values later, use:
+-- ALTER TYPE hazo_chat_reference_type ADD VALUE 'new_type';
+```
+
+#### Step 3.1.3: Create hazo_chat Table
+
+Create the chat messages table with UUID types and proper defaults:
+
+```sql
+-- hazo_chat table for storing chat messages (PostgreSQL)
+CREATE TABLE IF NOT EXISTS hazo_chat (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  reference_id UUID NOT NULL,
+  reference_type hazo_enum_chat_type DEFAULT 'chat' NOT NULL,
+  sender_user_id UUID NOT NULL,
+  receiver_user_id UUID NOT NULL,
+  message_text TEXT,
+  reference_list JSONB,
+  read_at TIMESTAMPTZ,
+  deleted_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Performance indexes
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_reference_id ON hazo_chat(reference_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_sender ON hazo_chat(sender_user_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_receiver ON hazo_chat(receiver_user_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_created ON hazo_chat(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_reference_type ON hazo_chat(reference_type);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_read_at ON hazo_chat(read_at) WHERE read_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_deleted_at ON hazo_chat(deleted_at) WHERE deleted_at IS NOT NULL;
+
+-- Composite index for common query pattern
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_receiver_reference ON hazo_chat(receiver_user_id, reference_id);
+```
+
+**Alternative: Without Enum Type (More Flexible)**
+
+If you prefer flexibility over strict enum validation:
+
+```sql
+-- hazo_chat table with TEXT reference_type (more flexible)
+CREATE TABLE IF NOT EXISTS hazo_chat (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  reference_id UUID NOT NULL,
+  reference_type TEXT DEFAULT 'chat' NOT NULL,
+  sender_user_id UUID NOT NULL,
+  receiver_user_id UUID NOT NULL,
+  message_text TEXT,
+  reference_list JSONB,
+  read_at TIMESTAMPTZ,
+  deleted_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Performance indexes (same as above)
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_reference_id ON hazo_chat(reference_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_sender ON hazo_chat(sender_user_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_receiver ON hazo_chat(receiver_user_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_created ON hazo_chat(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_reference_type ON hazo_chat(reference_type);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_read_at ON hazo_chat(read_at) WHERE read_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_deleted_at ON hazo_chat(deleted_at) WHERE deleted_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_receiver_reference ON hazo_chat(receiver_user_id, reference_id);
+```
+
+#### Step 3.1.4: Ensure Users Table Exists (PostgreSQL)
+
+You need a users table with at least these fields:
+
+```sql
+-- Users table for PostgreSQL
+CREATE TABLE IF NOT EXISTS hazo_users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email_address VARCHAR(255) UNIQUE NOT NULL,
+  name VARCHAR(255),
+  profile_picture_url TEXT,
+  is_active BOOLEAN DEFAULT TRUE NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Indexes for users table
+CREATE INDEX IF NOT EXISTS idx_hazo_users_email ON hazo_users(email_address);
+CREATE INDEX IF NOT EXISTS idx_hazo_users_active ON hazo_users(is_active) WHERE is_active = TRUE;
+```
+
+#### Step 3.1.5: Add Foreign Key Constraints (Optional)
+
+Add foreign key constraints for referential integrity:
+
+```sql
+-- Add foreign key constraints (optional but recommended)
+ALTER TABLE hazo_chat
+  ADD CONSTRAINT fk_hazo_chat_sender 
+    FOREIGN KEY (sender_user_id) 
+    REFERENCES hazo_users(id) 
+    ON DELETE RESTRICT,
+  ADD CONSTRAINT fk_hazo_chat_receiver 
+    FOREIGN KEY (receiver_user_id) 
+    REFERENCES hazo_users(id) 
+    ON DELETE RESTRICT;
+```
+
+### Step 3.2: SQLite Setup (Alternative)
+
+For SQLite databases (development/testing), use this simplified schema:
+
+```sql
+-- hazo_chat table for storing chat messages (SQLite)
 CREATE TABLE IF NOT EXISTS hazo_chat (
   id TEXT PRIMARY KEY,
   reference_id TEXT NOT NULL,
@@ -72,8 +201,8 @@ CREATE TABLE IF NOT EXISTS hazo_chat (
   reference_list TEXT,
   read_at TEXT,
   deleted_at TEXT,
-  created_at TEXT NOT NULL,
-  changed_at TEXT NOT NULL
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  changed_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- Performance indexes
@@ -83,9 +212,7 @@ CREATE INDEX IF NOT EXISTS idx_hazo_chat_receiver ON hazo_chat(receiver_user_id)
 CREATE INDEX IF NOT EXISTS idx_hazo_chat_created ON hazo_chat(created_at DESC);
 ```
 
-### Step 3.2: Ensure Users Table Exists
-
-You need a users table with at least these fields:
+**SQLite Users Table:**
 
 ```sql
 CREATE TABLE IF NOT EXISTS hazo_users (
@@ -94,12 +221,91 @@ CREATE TABLE IF NOT EXISTS hazo_users (
   name TEXT,
   profile_picture_url TEXT,
   is_active INTEGER DEFAULT 1,
-  created_at TEXT NOT NULL,
-  changed_at TEXT NOT NULL
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  changed_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 ```
 
+### Step 3.3: Key Differences Between PostgreSQL and SQLite
+
+| Feature | PostgreSQL | SQLite |
+|---------|-----------|--------|
+| **ID Type** | `UUID` with `gen_random_uuid()` default | `TEXT` (manual UUID generation) |
+| **Boolean** | `BOOLEAN` type with `TRUE`/`FALSE` | `INTEGER` with `0`/`1` |
+| **Timestamp** | `TIMESTAMPTZ` with `NOW()` default | `TEXT` with `datetime('now')` |
+| **JSON** | `JSONB` type (binary JSON) | `TEXT` (JSON string) |
+| **Enum** | Native `ENUM` type available | Not supported (use TEXT) |
+| **Extensions** | Requires UUID extension | No extensions needed |
+
+#### Step 3.3.1: Verify PostgreSQL Setup
+
+Run these queries to verify your PostgreSQL setup:
+
+```sql
+-- Verify UUID extension is enabled
+SELECT extname, extversion FROM pg_extension WHERE extname IN ('uuid-ossp', 'pgcrypto');
+
+-- Verify enum type exists (if using enum)
+SELECT typname FROM pg_type WHERE typname = 'hazo_chat_reference_type';
+
+-- Verify table structure
+SELECT 
+  column_name, 
+  data_type, 
+  column_default,
+  is_nullable
+FROM information_schema.columns 
+WHERE table_name = 'hazo_chat'
+ORDER BY ordinal_position;
+
+-- Verify indexes
+SELECT indexname, indexdef 
+FROM pg_indexes 
+WHERE tablename = 'hazo_chat';
+
+-- Test UUID generation
+SELECT gen_random_uuid() AS test_uuid;
+
+-- Test table insert with defaults (replace UUIDs with valid user IDs)
+INSERT INTO hazo_chat (
+  reference_id,
+  sender_user_id,
+  receiver_user_id,
+  message_text
+) VALUES (
+  gen_random_uuid(),
+  (SELECT id FROM hazo_users LIMIT 1),  -- Use existing user ID
+  (SELECT id FROM hazo_users LIMIT 1),  -- Use existing user ID
+  'Test message'
+);
+
+-- Verify auto-generated values
+SELECT 
+  id,
+  created_at,
+  changed_at,
+  reference_type
+FROM hazo_chat 
+WHERE message_text = 'Test message'
+LIMIT 1;
+
+-- Clean up test data
+DELETE FROM hazo_chat WHERE message_text = 'Test message';
+```
+
 ### Verification
+
+**PostgreSQL:**
+- [ ] UUID extension enabled (`uuid-ossp` or `pgcrypto`)
+- [ ] Enum type created (if using enum approach)
+- [ ] `hazo_chat` table exists with UUID columns
+- [ ] All indexes created successfully
+- [ ] Users table exists with UUID primary key
+- [ ] Can query: `SELECT * FROM hazo_chat LIMIT 1`
+- [ ] UUID default generation works: `INSERT INTO hazo_chat (...) VALUES (...)` generates UUID automatically
+- [ ] Timestamp defaults work: `created_at` and `changed_at` auto-populate
+
+**SQLite:**
 - [ ] `hazo_chat` table exists in database
 - [ ] Users table exists with at least one user
 - [ ] Can query: `SELECT * FROM hazo_chat LIMIT 1`
@@ -917,6 +1123,19 @@ For detailed specifications, see the [UI Design Standards](#ui-design-standards)
 - [ ] No TypeScript errors
 
 ### Database Verification
+
+**PostgreSQL:**
+- [ ] UUID extension enabled (check with: `SELECT * FROM pg_extension WHERE extname = 'uuid-ossp' OR extname = 'pgcrypto';`)
+- [ ] Enum type created (if using): `SELECT typname FROM pg_type WHERE typname = 'hazo_chat_reference_type';`
+- [ ] `hazo_chat` table exists with correct column types
+- [ ] All indexes created (check with: `SELECT indexname FROM pg_indexes WHERE tablename = 'hazo_chat';`)
+- [ ] UUID default generation works: Test insert without providing ID
+- [ ] Timestamp defaults work: Test insert without providing timestamps
+- [ ] Boolean columns accept TRUE/FALSE values
+- [ ] Can insert and query messages
+- [ ] Foreign key constraints work (if enabled)
+
+**SQLite:**
 - [ ] `hazo_chat` table exists
 - [ ] Users table exists with test users
 - [ ] Can insert and query messages
