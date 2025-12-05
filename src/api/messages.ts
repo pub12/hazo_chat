@@ -1,21 +1,21 @@
 /**
  * Messages API Handler Factory
- * 
- * Creates GET and POST handlers for the /api/hazo_chat/messages endpoint.
+ *
+ * Creates GET, POST, and DELETE handlers for the /api/hazo_chat/messages endpoint.
  * These handlers should be used in a Next.js API route.
- * 
+ *
  * @example
  * ```typescript
  * // app/api/hazo_chat/messages/route.ts
  * import { createMessagesHandler } from 'hazo_chat/api';
  * import { getHazoConnectSingleton } from 'hazo_connect/nextjs/setup';
- * 
+ *
  * export const dynamic = 'force-dynamic';
- * 
+ *
  * const { GET, POST } = createMessagesHandler({
  *   getHazoConnect: () => getHazoConnectSingleton()
  * });
- * 
+ *
  * export { GET, POST };
  * ```
  */
@@ -24,14 +24,61 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createCrudService, getSqliteAdminService } from 'hazo_connect/server';
 import type { HazoConnectAdapter } from 'hazo_connect';
-import type { MessagesHandlerOptions, ChatMessageInput, ChatMessageRecord } from './types.js';
+import type { MessagesHandlerOptions, ChatMessageInput, ChatMessageRecord, ApiErrorResponse, ApiSuccessResponse } from './types.js';
 
-// UUID generation for message IDs
+// ============================================================================
+// Constants for validation
+// ============================================================================
+
+/** Maximum message length in characters */
+const MAX_MESSAGE_LENGTH = 5000;
+
+/** Maximum length for reference_id */
+const MAX_REFERENCE_ID_LENGTH = 255;
+
+/** Maximum length for reference_type */
+const MAX_REFERENCE_TYPE_LENGTH = 100;
+
+/** Default messages per page */
+const DEFAULT_LIMIT = 50;
+
+/** Maximum messages per page */
+const MAX_LIMIT = 100;
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/** Generate a UUID v4 */
 function generateUUID(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
     return v.toString(16);
+  });
+}
+
+/** Create a standardized error response */
+function createErrorResponse(
+  error: string,
+  status: number,
+  error_code?: string
+): NextResponse<ApiErrorResponse> {
+  return NextResponse.json(
+    {
+      success: false,
+      error,
+      error_code,
+    },
+    { status }
+  );
+}
+
+/** Create a standardized success response */
+function createSuccessResponse<T>(data: T): NextResponse<ApiSuccessResponse<T>> {
+  return NextResponse.json({
+    success: true,
+    data,
   });
 }
 
@@ -53,12 +100,15 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
   const { getHazoConnect, getUserIdFromRequest } = options;
 
   /**
-   * GET handler - Fetch chat messages
-   * 
+   * GET handler - Fetch chat messages with pagination
+   *
    * Query params:
    * - receiver_user_id (required): The other user in the conversation
    * - reference_id (optional): Filter by reference ID
    * - reference_type (optional): Filter by reference type
+   * - limit (optional): Number of messages per page (default: 50, max: 100)
+   * - cursor (optional): Cursor for pagination (created_at timestamp of last message)
+   * - direction (optional): 'older' or 'newer' relative to cursor (default: 'older')
    */
   async function GET(request: NextRequest): Promise<NextResponse> {
     try {
@@ -69,10 +119,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
 
       if (!current_user_id) {
         console.error('[hazo_chat/messages GET] No user ID - not authenticated');
-        return NextResponse.json(
-          { success: false, error: 'User not authenticated', messages: [] },
-          { status: 401 }
-        );
+        return createErrorResponse('User not authenticated', 401, 'UNAUTHENTICATED');
       }
 
       // Get query params
@@ -80,13 +127,41 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
       const receiver_user_id = searchParams.get('receiver_user_id');
       const reference_id = searchParams.get('reference_id') || '';
       const reference_type = searchParams.get('reference_type') || '';
+      const cursor = searchParams.get('cursor') || '';
+      const direction = searchParams.get('direction') || 'older';
+      const limit_param = searchParams.get('limit');
 
+      // Validate required params
       if (!receiver_user_id) {
         console.error('[hazo_chat/messages GET] Missing receiver_user_id');
-        return NextResponse.json(
-          { success: false, error: 'receiver_user_id is required', messages: [] },
-          { status: 400 }
+        return createErrorResponse('receiver_user_id is required', 400, 'MISSING_RECEIVER');
+      }
+
+      // Validate input lengths
+      if (reference_id && reference_id.length > MAX_REFERENCE_ID_LENGTH) {
+        return createErrorResponse(
+          `reference_id exceeds maximum length of ${MAX_REFERENCE_ID_LENGTH}`,
+          400,
+          'INVALID_REFERENCE_ID'
         );
+      }
+
+      if (reference_type && reference_type.length > MAX_REFERENCE_TYPE_LENGTH) {
+        return createErrorResponse(
+          `reference_type exceeds maximum length of ${MAX_REFERENCE_TYPE_LENGTH}`,
+          400,
+          'INVALID_REFERENCE_TYPE'
+        );
+      }
+
+      // Parse and validate limit
+      let limit = DEFAULT_LIMIT;
+      if (limit_param) {
+        const parsed_limit = parseInt(limit_param, 10);
+        if (isNaN(parsed_limit) || parsed_limit < 1) {
+          return createErrorResponse('limit must be a positive integer', 400, 'INVALID_LIMIT');
+        }
+        limit = Math.min(parsed_limit, MAX_LIMIT);
       }
 
       console.log('[hazo_chat/messages GET] Fetching messages:', {
@@ -94,6 +169,9 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
         receiver_user_id,
         reference_id,
         reference_type,
+        cursor,
+        direction,
+        limit,
       });
 
       // Get hazo_connect instance and create CRUD service
@@ -101,28 +179,59 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
       const chatService = createCrudService<ChatMessageRecord>(hazoConnect, 'hazo_chat');
 
       let messages: ChatMessageRecord[] = [];
-      
+
       try {
-        // Fetch all messages with reference filters
+        // Build query with proper filtering
         const all_messages = await chatService.list((qb) => {
           let builder = qb.select('*');
-          
+
+          // Filter by reference if provided
           if (reference_id) {
             builder = builder.where('reference_id', 'eq', reference_id);
           }
           if (reference_type) {
             builder = builder.where('reference_type', 'eq', reference_type);
           }
-          
-          return builder.order('created_at', 'asc');
+
+          // Apply cursor-based pagination
+          if (cursor) {
+            if (direction === 'newer') {
+              builder = builder.where('created_at', 'gt', cursor);
+            } else {
+              builder = builder.where('created_at', 'lt', cursor);
+            }
+          }
+
+          // Order by created_at
+          // For 'older' direction, we want desc to get the most recent first before cursor
+          // For 'newer' or initial load, we want asc
+          if (direction === 'older' && cursor) {
+            builder = builder.order('created_at', 'desc');
+          } else {
+            builder = builder.order('created_at', 'asc');
+          }
+
+          return builder;
         });
 
         // Filter to only messages between current user and receiver
-        messages = all_messages.filter((msg) => {
-          const is_sent_by_me = msg.sender_user_id === current_user_id && msg.receiver_user_id === receiver_user_id;
-          const is_sent_to_me = msg.sender_user_id === receiver_user_id && msg.receiver_user_id === current_user_id;
+        // Also exclude deleted messages
+        const filtered_messages = all_messages.filter((msg) => {
+          if (msg.deleted_at) return false;
+          const is_sent_by_me =
+            msg.sender_user_id === current_user_id && msg.receiver_user_id === receiver_user_id;
+          const is_sent_to_me =
+            msg.sender_user_id === receiver_user_id && msg.receiver_user_id === current_user_id;
           return is_sent_by_me || is_sent_to_me;
         });
+
+        // Apply limit after filtering
+        messages = filtered_messages.slice(0, limit);
+
+        // If we fetched in desc order, reverse to return in asc order
+        if (direction === 'older' && cursor) {
+          messages.reverse();
+        }
       } catch (dbError) {
         console.error('[hazo_chat/messages GET] Database error:', dbError);
         throw dbError;
@@ -130,28 +239,38 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
 
       console.log('[hazo_chat/messages GET] Found messages:', messages.length);
 
+      // Determine if there are more messages
+      const has_more = messages.length === limit;
+
+      // Get cursors for next/prev page
+      const next_cursor = messages.length > 0 ? messages[messages.length - 1].created_at : null;
+      const prev_cursor = messages.length > 0 ? messages[0].created_at : null;
+
       return NextResponse.json({
         success: true,
         messages,
         current_user_id,
+        pagination: {
+          limit,
+          has_more,
+          next_cursor,
+          prev_cursor,
+        },
       });
     } catch (error) {
       const error_message = error instanceof Error ? error.message : 'Unknown error';
       console.error('[hazo_chat/messages GET] Error:', error_message, error);
-      
-      return NextResponse.json(
-        { success: false, error: 'Failed to fetch messages', messages: [] },
-        { status: 500 }
-      );
+
+      return createErrorResponse('Failed to fetch messages', 500, 'INTERNAL_ERROR');
     }
   }
 
   /**
    * POST handler - Create a new chat message
-   * 
+   *
    * Request body:
    * - receiver_user_id (required): The recipient user ID
-   * - message_text (required): The message content
+   * - message_text (required): The message content (max 5000 chars)
    * - reference_id (optional): Reference ID for context grouping
    * - reference_type (optional): Reference type (default: 'chat')
    */
@@ -164,10 +283,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
 
       if (!sender_user_id) {
         console.error('[hazo_chat/messages POST] No user ID - not authenticated');
-        return NextResponse.json(
-          { success: false, error: 'User not authenticated' },
-          { status: 401 }
-        );
+        return createErrorResponse('User not authenticated', 401, 'UNAUTHENTICATED');
       }
 
       // Parse request body
@@ -177,17 +293,50 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
       // Validate required fields
       if (!receiver_user_id) {
         console.error('[hazo_chat/messages POST] Missing receiver_user_id');
-        return NextResponse.json(
-          { success: false, error: 'receiver_user_id is required' },
-          { status: 400 }
+        return createErrorResponse('receiver_user_id is required', 400, 'MISSING_RECEIVER');
+      }
+
+      // Validate message_text
+      if (!message_text || typeof message_text !== 'string') {
+        console.error('[hazo_chat/messages POST] Missing message_text');
+        return createErrorResponse('message_text is required', 400, 'MISSING_MESSAGE');
+      }
+
+      const trimmed_message = message_text.trim();
+
+      if (trimmed_message === '') {
+        console.error('[hazo_chat/messages POST] Empty message_text');
+        return createErrorResponse(
+          'message_text cannot be empty or whitespace-only',
+          400,
+          'EMPTY_MESSAGE'
         );
       }
 
-      if (!message_text || message_text.trim() === '') {
-        console.error('[hazo_chat/messages POST] Missing or empty message_text');
-        return NextResponse.json(
-          { success: false, error: 'message_text is required' },
-          { status: 400 }
+      if (trimmed_message.length > MAX_MESSAGE_LENGTH) {
+        console.error('[hazo_chat/messages POST] Message too long:', trimmed_message.length);
+        return createErrorResponse(
+          `Message exceeds maximum length of ${MAX_MESSAGE_LENGTH} characters`,
+          400,
+          'MESSAGE_TOO_LONG'
+        );
+      }
+
+      // Validate reference_id length
+      if (reference_id && reference_id.length > MAX_REFERENCE_ID_LENGTH) {
+        return createErrorResponse(
+          `reference_id exceeds maximum length of ${MAX_REFERENCE_ID_LENGTH}`,
+          400,
+          'INVALID_REFERENCE_ID'
+        );
+      }
+
+      // Validate reference_type length
+      if (reference_type && reference_type.length > MAX_REFERENCE_TYPE_LENGTH) {
+        return createErrorResponse(
+          `reference_type exceeds maximum length of ${MAX_REFERENCE_TYPE_LENGTH}`,
+          400,
+          'INVALID_REFERENCE_TYPE'
         );
       }
 
@@ -206,7 +355,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
         reference_type: reference_type || 'chat',
         sender_user_id,
         receiver_user_id,
-        message_text: message_text.trim(),
+        message_text: trimmed_message,
         reference_list: null,
         read_at: null,
         deleted_at: null,
@@ -220,7 +369,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
         receiver_user_id,
         reference_id: reference_id || '',
         reference_type: reference_type || 'chat',
-        message_length: message_text.length,
+        message_length: trimmed_message.length,
       });
 
       // Save to database
@@ -241,7 +390,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
           receiver_user_id,
           reference_id: reference_id || '',
           reference_type: reference_type || 'chat',
-          message_text: message_text.trim(),
+          message_text: trimmed_message,
           reference_list: null,
           read_at: null,
           deleted_at: null,
@@ -252,11 +401,8 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
     } catch (error) {
       const error_message = error instanceof Error ? error.message : 'Unknown error';
       console.error('[hazo_chat/messages POST] Error:', error_message, error);
-      
-      return NextResponse.json(
-        { success: false, error: 'Failed to save message' },
-        { status: 500 }
-      );
+
+      return createErrorResponse('Failed to save message', 500, 'INTERNAL_ERROR');
     }
   }
 
@@ -412,4 +558,165 @@ export function createMarkAsReadHandler(options: MessagesHandlerOptions) {
   }
 
   return { PATCH };
+}
+
+/**
+ * Creates a DELETE handler for soft-deleting a message
+ *
+ * This handler should be used in a Next.js API route like:
+ * /api/hazo_chat/messages/[id]/route.ts
+ *
+ * @example
+ * ```typescript
+ * // app/api/hazo_chat/messages/[id]/route.ts
+ * import { createDeleteHandler } from 'hazo_chat/api';
+ * import { getHazoConnectSingleton } from 'hazo_connect/nextjs/setup';
+ *
+ * export const dynamic = 'force-dynamic';
+ *
+ * const { DELETE } = createDeleteHandler({
+ *   getHazoConnect: () => getHazoConnectSingleton()
+ * });
+ *
+ * export { DELETE };
+ * ```
+ *
+ * @param options - Configuration options
+ * @returns DELETE handler function
+ */
+export function createDeleteHandler(options: MessagesHandlerOptions) {
+  const { getHazoConnect, getUserIdFromRequest } = options;
+
+  /**
+   * DELETE handler - Soft delete a message
+   *
+   * Route params:
+   * - id (required): The message ID to delete
+   *
+   * Note: This performs a soft delete by setting deleted_at timestamp.
+   * Only the sender can delete their own messages.
+   */
+  async function DELETE(
+    request: NextRequest,
+    context: { params: { id: string } | Promise<{ id: string }> }
+  ): Promise<NextResponse> {
+    try {
+      // Get current user ID
+      const current_user_id = getUserIdFromRequest
+        ? await getUserIdFromRequest(request)
+        : await defaultGetUserIdFromRequest();
+
+      if (!current_user_id) {
+        console.error('[hazo_chat/messages/[id] DELETE] No user ID - not authenticated');
+        return createErrorResponse('User not authenticated', 401, 'UNAUTHENTICATED');
+      }
+
+      // Handle params as Promise (Next.js 15+) or direct object (Next.js 13-14)
+      const params = context.params instanceof Promise ? await context.params : context.params;
+      const message_id = params.id;
+
+      if (!message_id) {
+        console.error('[hazo_chat/messages/[id] DELETE] Missing message ID');
+        return createErrorResponse('Message ID is required', 400, 'MISSING_MESSAGE_ID');
+      }
+
+      console.log('[hazo_chat/messages/[id] DELETE] Deleting message:', {
+        message_id,
+        current_user_id,
+      });
+
+      // Get hazo_connect instance and create CRUD service
+      const hazoConnect = getHazoConnect() as HazoConnectAdapter;
+      const chatService = createCrudService<ChatMessageRecord>(hazoConnect, 'hazo_chat');
+
+      // Fetch the message to verify ownership
+      let message: ChatMessageRecord | null = null;
+      try {
+        const messages = await chatService.list((qb) =>
+          qb.select('*').where('id', 'eq', message_id)
+        );
+        message = messages[0] || null;
+      } catch (dbError) {
+        console.error('[hazo_chat/messages/[id] DELETE] Database error fetching message:', dbError);
+        throw dbError;
+      }
+
+      if (!message) {
+        console.error('[hazo_chat/messages/[id] DELETE] Message not found:', message_id);
+        return createErrorResponse('Message not found', 404, 'MESSAGE_NOT_FOUND');
+      }
+
+      // Verify that the current user is the sender (only senders can delete their messages)
+      if (message.sender_user_id !== current_user_id) {
+        console.error('[hazo_chat/messages/[id] DELETE] User is not the sender:', {
+          message_id,
+          current_user_id,
+          sender_user_id: message.sender_user_id,
+        });
+        return createErrorResponse(
+          'Unauthorized - only the sender can delete their messages',
+          403,
+          'UNAUTHORIZED'
+        );
+      }
+
+      // Check if already deleted
+      if (message.deleted_at) {
+        console.log('[hazo_chat/messages/[id] DELETE] Message already deleted:', message_id);
+        return NextResponse.json({
+          success: true,
+          message: {
+            ...message,
+            message_text: null,
+          },
+        });
+      }
+
+      // Soft delete: set deleted_at timestamp and clear message_text
+      const now = new Date().toISOString();
+      try {
+        const sqliteService = getSqliteAdminService();
+        const updated_rows = await sqliteService.updateRows(
+          'hazo_chat',
+          { id: message_id },
+          { deleted_at: now, message_text: null, changed_at: now }
+        );
+
+        if (updated_rows.length === 0) {
+          console.warn(
+            '[hazo_chat/messages/[id] DELETE] No rows updated - message may not exist:',
+            message_id
+          );
+        } else {
+          console.log(
+            '[hazo_chat/messages/[id] DELETE] Successfully deleted',
+            updated_rows.length,
+            'row(s)'
+          );
+        }
+      } catch (dbError) {
+        console.error('[hazo_chat/messages/[id] DELETE] Database error deleting message:', dbError);
+        throw dbError;
+      }
+
+      console.log('[hazo_chat/messages/[id] DELETE] Message deleted successfully:', message_id);
+
+      return NextResponse.json({
+        success: true,
+        message: {
+          ...message,
+          deleted_at: now,
+          message_text: null,
+          changed_at: now,
+        },
+      });
+    } catch (error) {
+      const error_message = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[hazo_chat/messages/[id] DELETE] Error:', error_message, error);
+
+      return createErrorResponse('Failed to delete message', 500, 'INTERNAL_ERROR');
+    }
+  }
+
+  return { DELETE };
 }

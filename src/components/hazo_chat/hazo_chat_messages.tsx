@@ -1,30 +1,87 @@
 /**
  * HazoChatMessages Component
- * 
+ *
  * Scrollable message list with:
  * - Infinite scroll for older messages
  * - Auto-scroll to new messages
  * - Scroll to highlighted message
  * - Empty and loading states
- * 
+ * - Memoization for performance
+ *
  * Uses shadcn/ui ScrollArea component.
  */
 
 'use client';
 
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, memo } from 'react';
 import { cn } from '../../lib/utils.js';
-import type { HazoChatMessagesProps, ChatReferenceItem } from '../../types/index.js';
+import type { HazoChatMessagesProps, ChatReferenceItem, ChatMessage } from '../../types/index.js';
 import { ChatBubble } from '../ui/chat_bubble.js';
 import { LoadingSkeleton } from '../ui/loading_skeleton.js';
 import { ScrollArea } from '../ui/scroll-area.js';
 import { EMPTY_CHAT_MESSAGE } from '../../lib/constants.js';
 
 // ============================================================================
+// Memoized ChatBubble wrapper for better performance
+// ============================================================================
+
+interface MemoizedChatBubbleProps {
+  message: ChatMessage;
+  current_user_id: string;
+  timezone: string;
+  on_delete_message: (message_id: string) => void;
+  on_reference_click: (reference: ChatReferenceItem) => void;
+  is_highlighted: boolean;
+  show_delete_button: boolean;
+  bubble_radius: 'default' | 'full';
+}
+
+const MemoizedChatBubble = memo(
+  function MemoizedChatBubble({
+    message,
+    current_user_id,
+    timezone,
+    on_delete_message,
+    on_reference_click,
+    is_highlighted,
+    show_delete_button,
+    bubble_radius,
+  }: MemoizedChatBubbleProps) {
+    const is_sender = message.sender_user_id === current_user_id;
+
+    return (
+      <ChatBubble
+        message={message}
+        is_sender={is_sender}
+        sender_profile={message.sender_profile}
+        timezone={timezone}
+        on_delete={is_sender ? () => on_delete_message(message.id) : undefined}
+        on_reference_click={on_reference_click}
+        is_highlighted={is_highlighted}
+        show_delete_button={show_delete_button}
+        bubble_radius={bubble_radius}
+      />
+    );
+  },
+  (prevProps, nextProps) => {
+    // Only re-render if these specific props change
+    return (
+      prevProps.message.id === nextProps.message.id &&
+      prevProps.message.read_at === nextProps.message.read_at &&
+      prevProps.message.deleted_at === nextProps.message.deleted_at &&
+      prevProps.message.send_status === nextProps.message.send_status &&
+      prevProps.is_highlighted === nextProps.is_highlighted &&
+      prevProps.show_delete_button === nextProps.show_delete_button &&
+      prevProps.bubble_radius === nextProps.bubble_radius
+    );
+  }
+);
+
+// ============================================================================
 // Component
 // ============================================================================
 
-export function HazoChatMessages({
+function HazoChatMessagesInner({
   messages,
   current_user_id,
   timezone,
@@ -306,16 +363,11 @@ export function HazoChatMessages({
               }
             }}
           >
-            <ChatBubble
+            <MemoizedChatBubble
               message={message}
-              is_sender={message.sender_user_id === current_user_id}
-              sender_profile={message.sender_profile}
+              current_user_id={current_user_id}
               timezone={timezone}
-              on_delete={
-                message.sender_user_id === current_user_id
-                  ? () => on_delete_message(message.id)
-                  : undefined
-              }
+              on_delete_message={on_delete_message}
               on_reference_click={handle_reference_click}
               is_highlighted={highlighted_message_id === message.id}
               show_delete_button={show_delete_button}
@@ -327,5 +379,32 @@ export function HazoChatMessages({
     </ScrollArea>
   );
 }
+
+// Memoized export to prevent unnecessary re-renders
+export const HazoChatMessages = memo(HazoChatMessagesInner, (prevProps, nextProps) => {
+  // Deep comparison for messages array by checking length and IDs
+  if (prevProps.messages.length !== nextProps.messages.length) return false;
+  if (prevProps.is_loading !== nextProps.is_loading) return false;
+  if (prevProps.has_more !== nextProps.has_more) return false;
+  if (prevProps.highlighted_message_id !== nextProps.highlighted_message_id) return false;
+  if (prevProps.show_delete_button !== nextProps.show_delete_button) return false;
+  if (prevProps.bubble_radius !== nextProps.bubble_radius) return false;
+
+  // Check if any message has changed (by comparing key fields)
+  for (let i = 0; i < prevProps.messages.length; i++) {
+    const prev = prevProps.messages[i];
+    const next = nextProps.messages[i];
+    if (
+      prev.id !== next.id ||
+      prev.read_at !== next.read_at ||
+      prev.deleted_at !== next.deleted_at ||
+      prev.send_status !== next.send_status
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+});
 
 HazoChatMessages.displayName = 'HazoChatMessages';

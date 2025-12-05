@@ -40,11 +40,20 @@ export function HazoChatHeader({
   // Handle close button click - ensure event is properly handled
   const handle_close_click = useCallback(
     (e: React.MouseEvent<HTMLButtonElement>) => {
+      // Prevent any default behavior and stop propagation
       e.preventDefault();
       e.stopPropagation();
-      // Ensure on_close is called
-      if (on_close) {
-        on_close();
+
+      // Log for debugging
+      console.log('[HazoChatHeader] Close button clicked, on_close:', typeof on_close);
+
+      // Call the close handler if provided
+      if (typeof on_close === 'function') {
+        try {
+          on_close();
+        } catch (err) {
+          console.error('[HazoChatHeader] Error calling on_close:', err);
+        }
       }
     },
     [on_close]
@@ -133,31 +142,29 @@ export function HazoChatHeader({
           </Tooltip>
         )}
 
-        {/* Close button */}
+        {/* Close button - without Tooltip wrapper to ensure onClick works reliably */}
         {on_close && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handle_close_click}
-                type="button"
-                className={cn(
-                  'cls_header_close',
-                  'h-8 w-8 rounded-md',
-                  'text-muted-foreground',
-                  'hover:bg-destructive/10 hover:text-destructive',
-                  'transition-colors'
-                )}
-                aria-label="Close chat"
-              >
-                <IoClose className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="text-xs">
-              Close chat
-            </TooltipContent>
-          </Tooltip>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handle_close_click}
+            onMouseDown={(e) => {
+              // Ensure the click is captured even if tooltip interferes
+              e.stopPropagation();
+            }}
+            type="button"
+            className={cn(
+              'cls_header_close',
+              'h-8 w-8 rounded-md',
+              'text-muted-foreground',
+              'hover:bg-destructive/10 hover:text-destructive',
+              'transition-colors'
+            )}
+            aria-label="Close chat"
+            title="Close chat"
+          >
+            <IoClose className="h-4 w-4" />
+          </Button>
         )}
       </div>
     </header>

@@ -362,13 +362,117 @@ export interface HazoChatContextValue extends HazoChatContextState, HazoChatCont
 
 /**
  * Real-time update mode
+ * - 'polling': Automatic polling at configured interval
+ * - 'manual': Only update when user triggers refresh
+ * - 'websocket': (Future) WebSocket-based real-time updates
+ * - 'sse': (Future) Server-Sent Events-based updates
  */
-export type RealtimeMode = 'polling' | 'manual';
+export type RealtimeMode = 'polling' | 'manual' | 'websocket' | 'sse';
 
 /**
- * Polling connection status
+ * Connection status for real-time updates
  */
 export type PollingStatus = 'connected' | 'reconnecting' | 'error';
+
+// ============================================================================
+// Transport Abstraction Types (for future WebSocket/SSE support)
+// ============================================================================
+
+/**
+ * Event types that can be received from real-time transport
+ */
+export type TransportEventType =
+  | 'message_created'
+  | 'message_updated'
+  | 'message_deleted'
+  | 'message_read'
+  | 'typing_started'
+  | 'typing_stopped';
+
+/**
+ * Event payload from real-time transport
+ */
+export interface TransportEvent {
+  type: TransportEventType;
+  payload: ChatMessageDB | { message_id: string; user_id: string };
+  timestamp: string;
+}
+
+/**
+ * Callback for handling transport events
+ */
+export type TransportEventHandler = (event: TransportEvent) => void;
+
+/**
+ * Abstract transport interface for real-time communication
+ *
+ * Implement this interface to add new transport types (WebSocket, SSE, etc.)
+ *
+ * @example
+ * ```typescript
+ * class WebSocketTransport implements RealtimeTransport {
+ *   private ws: WebSocket | null = null;
+ *
+ *   async connect(url: string, options: TransportOptions): Promise<void> {
+ *     this.ws = new WebSocket(url);
+ *     // ... setup handlers
+ *   }
+ *
+ *   async disconnect(): Promise<void> {
+ *     this.ws?.close();
+ *   }
+ *
+ *   // ... other methods
+ * }
+ * ```
+ */
+export interface RealtimeTransport {
+  /** Connect to the real-time service */
+  connect(url: string, options: TransportOptions): Promise<void>;
+
+  /** Disconnect from the real-time service */
+  disconnect(): Promise<void>;
+
+  /** Check if currently connected */
+  isConnected(): boolean;
+
+  /** Get current connection status */
+  getStatus(): PollingStatus;
+
+  /** Subscribe to events for a specific conversation */
+  subscribe(
+    receiver_user_id: string,
+    reference_id?: string,
+    handler?: TransportEventHandler
+  ): void;
+
+  /** Unsubscribe from events */
+  unsubscribe(): void;
+
+  /** Register a handler for status changes */
+  onStatusChange(handler: (status: PollingStatus) => void): void;
+
+  /** Register a handler for new messages */
+  onMessage(handler: (messages: ChatMessageDB[]) => void): void;
+}
+
+/**
+ * Options for configuring a transport
+ */
+export interface TransportOptions {
+  /** Authentication token or credentials */
+  auth_token?: string;
+
+  /** Reconnection settings */
+  reconnect?: {
+    enabled: boolean;
+    max_attempts: number;
+    base_delay: number;
+  };
+
+  /** Heartbeat/ping interval in ms */
+  heartbeat_interval?: number;
+}
 
 // ============================================================================
 // Hook Return Types
@@ -449,6 +553,16 @@ export interface HazoChatConfig {
 // ============================================================================
 
 /**
+ * Pagination metadata returned in list responses
+ */
+export interface PaginationInfo {
+  limit: number;
+  has_more: boolean;
+  next_cursor: string | null;
+  prev_cursor: string | null;
+}
+
+/**
  * Response from GET /api/hazo_chat/messages
  */
 export interface MessagesApiResponse {
@@ -456,12 +570,31 @@ export interface MessagesApiResponse {
   messages?: ChatMessageDB[];
   current_user_id?: string;
   error?: string;
+  pagination?: PaginationInfo;
 }
 
 /**
  * Response from POST /api/hazo_chat/messages
  */
 export interface SendMessageApiResponse {
+  success: boolean;
+  message?: ChatMessageDB;
+  error?: string;
+}
+
+/**
+ * Response from DELETE /api/hazo_chat/messages/[id]
+ */
+export interface DeleteMessageApiResponse {
+  success: boolean;
+  message?: ChatMessageDB;
+  error?: string;
+}
+
+/**
+ * Response from PATCH /api/hazo_chat/messages/[id]/read
+ */
+export interface MarkAsReadApiResponse {
   success: boolean;
   message?: ChatMessageDB;
   error?: string;
