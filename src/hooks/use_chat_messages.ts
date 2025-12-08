@@ -51,8 +51,8 @@ const MAX_POLLING_DELAY = 30000;
 // ============================================================================
 
 export interface UseChatMessagesParams {
-  /** UUID of the chat recipient (required) */
-  receiver_user_id: string;
+  /** UUID of the chat group (required) */
+  chat_group_id: string;
   /** Reference ID for chat context grouping */
   reference_id?: string;
   /** Reference type (default: 'chat') */
@@ -118,7 +118,7 @@ function generateOptimisticId(): string {
 // ============================================================================
 
 export function useChatMessages({
-  receiver_user_id,
+  chat_group_id,
   reference_id = '',
   reference_type = 'chat',
   api_base_url = '/api/hazo_chat',
@@ -152,7 +152,7 @@ export function useChatMessages({
   // -------------------------------------------------------------------------
   const config = useMemo(
     () => ({
-      receiver_user_id,
+      chat_group_id,
       reference_id,
       reference_type,
       api_base_url,
@@ -160,7 +160,7 @@ export function useChatMessages({
       polling_interval,
       messages_per_page,
     }),
-    [receiver_user_id, reference_id, reference_type, api_base_url, realtime_mode, polling_interval, messages_per_page]
+    [chat_group_id, reference_id, reference_type, api_base_url, realtime_mode, polling_interval, messages_per_page]
   );
 
   // -------------------------------------------------------------------------
@@ -270,11 +270,10 @@ export function useChatMessages({
   // -------------------------------------------------------------------------
   const transform_messages = useCallback(
     async (db_messages: ChatMessageDB[], user_id: string): Promise<ChatMessage[]> => {
-      // Collect all unique user IDs
+      // Collect all unique sender IDs (no longer need receiver since it's group-based)
       const user_ids = new Set<string>();
       db_messages.forEach((msg) => {
         user_ids.add(msg.sender_user_id);
-        user_ids.add(msg.receiver_user_id);
       });
 
       // Fetch profiles
@@ -284,7 +283,6 @@ export function useChatMessages({
       return db_messages.map((msg) => ({
         ...msg,
         sender_profile: profiles.get(msg.sender_user_id),
-        receiver_profile: profiles.get(msg.receiver_user_id),
         is_sender: msg.sender_user_id === user_id,
         send_status: 'sent' as const,
       }));
@@ -318,13 +316,13 @@ export function useChatMessages({
       has_more: boolean;
       next_cursor: string | null;
     }> => {
-      if (!config.receiver_user_id) {
+      if (!config.chat_group_id) {
         return { messages: [], user_id: null, has_more: false, next_cursor: null };
       }
 
       try {
         const params = new URLSearchParams({
-          receiver_user_id: config.receiver_user_id,
+          chat_group_id: config.chat_group_id,
           limit: String(options?.limit || config.messages_per_page),
         });
 
@@ -371,7 +369,7 @@ export function useChatMessages({
   // Initial load
   // -------------------------------------------------------------------------
   const load_initial = useCallback(async () => {
-    if (!config.receiver_user_id) {
+    if (!config.chat_group_id) {
       set_is_loading(false);
       return;
     }
@@ -416,7 +414,7 @@ export function useChatMessages({
         set_is_loading(false);
       }
     }
-  }, [config.receiver_user_id, fetch_messages_from_api, transform_messages]);
+  }, [config.chat_group_id, fetch_messages_from_api, transform_messages]);
 
   // -------------------------------------------------------------------------
   // Load more (pagination)
@@ -463,7 +461,7 @@ export function useChatMessages({
   // Poll for new messages (uses setTimeout for proper backoff)
   // -------------------------------------------------------------------------
   const schedule_next_poll = useCallback(() => {
-    if (!is_mounted_ref.current || config.realtime_mode !== 'polling' || !config.receiver_user_id) {
+    if (!is_mounted_ref.current || config.realtime_mode !== 'polling' || !config.chat_group_id) {
       return;
     }
 
@@ -526,7 +524,7 @@ export function useChatMessages({
         }
       }
     }, delay);
-  }, [config.realtime_mode, config.receiver_user_id, get_poll_delay, fetch_messages_from_api, transform_messages, messages, current_user_id]);
+  }, [config.realtime_mode, config.chat_group_id, get_poll_delay, fetch_messages_from_api, transform_messages, messages, current_user_id]);
 
   // -------------------------------------------------------------------------
   // Start/stop polling based on realtime_mode
@@ -538,8 +536,8 @@ export function useChatMessages({
       polling_timer_ref.current = null;
     }
 
-    // Only start polling if mode is 'polling' and we have a receiver
-    if (config.realtime_mode === 'polling' && config.receiver_user_id && current_user_id) {
+    // Only start polling if mode is 'polling' and we have a chat group
+    if (config.realtime_mode === 'polling' && config.chat_group_id && current_user_id) {
       schedule_next_poll();
     } else if (config.realtime_mode === 'manual') {
       set_polling_status('connected');
@@ -551,7 +549,7 @@ export function useChatMessages({
         polling_timer_ref.current = null;
       }
     };
-  }, [config.realtime_mode, config.receiver_user_id, current_user_id, schedule_next_poll]);
+  }, [config.realtime_mode, config.chat_group_id, current_user_id, schedule_next_poll]);
 
   // -------------------------------------------------------------------------
   // Initial load effect
@@ -573,14 +571,13 @@ export function useChatMessages({
       // Create optimistic message with unique ID
       const optimistic_id = generateOptimisticId();
       const sender_profile = get_cached_profile(current_user_id);
-      const receiver_profile = get_cached_profile(payload.receiver_user_id);
 
       const optimistic_message: ChatMessage = {
         id: optimistic_id,
         reference_id: payload.reference_id,
         reference_type: payload.reference_type,
         sender_user_id: current_user_id,
-        receiver_user_id: payload.receiver_user_id,
+        chat_group_id: payload.chat_group_id,
         message_text: payload.message_text,
         reference_list: payload.reference_list || null,
         read_at: null,
@@ -588,7 +585,6 @@ export function useChatMessages({
         created_at: new Date().toISOString(),
         changed_at: new Date().toISOString(),
         sender_profile: sender_profile || undefined,
-        receiver_profile: receiver_profile || undefined,
         is_sender: true,
         send_status: 'sending',
       };
@@ -607,7 +603,7 @@ export function useChatMessages({
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({
-            receiver_user_id: payload.receiver_user_id,
+            chat_group_id: payload.chat_group_id,
             message_text: payload.message_text,
             reference_id: payload.reference_id,
             reference_type: payload.reference_type,
@@ -625,7 +621,6 @@ export function useChatMessages({
             deleted_at: data.message.deleted_at ?? null,
             changed_at: data.message.changed_at ?? data.message.created_at,
             sender_profile: sender_profile || undefined,
-            receiver_profile: receiver_profile || undefined,
             is_sender: true,
             send_status: 'sent',
           };

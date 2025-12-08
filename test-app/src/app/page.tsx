@@ -60,7 +60,6 @@ import { ProfilePicMenu } from 'hazo_auth/components/layouts/shared/components/p
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore - webpack alias resolves this path
 import { use_auth_status } from 'hazo_auth/components/layouts/shared/hooks/use_auth_status';
-import { UserCombobox } from '@/components/user_combobox';
 import { Input } from '@/components/ui/input';
 import {
   HoverCard,
@@ -159,7 +158,9 @@ interface ReferenceFile {
     id: string;
     name: string;
     type: 'link' | 'document' | 'field';
-    url?: string;
+    url: string;
+    mime_type?: string;
+    file_size?: number;
 }
 
 // section: helper_functions
@@ -801,7 +802,8 @@ export default function HazoChatTestPage() {
   const [is_sheet_open, set_is_sheet_open] = useState(false);
   const [is_dialog_open, set_is_dialog_open] = useState(false);
   const [current_view, set_current_view] = useState<'embedded' | 'sheet' | 'dialog'>('embedded');
-  const [selected_user_id, set_selected_user_id] = useState<string>('');
+  // v3.0: Use chat_group_id instead of user_id
+  const [selected_chat_group_id, set_selected_chat_group_id] = useState<string>('test-chat-group-001');
   const [reference_id, set_reference_id] = useState<string>('');
   const [reference_type, set_reference_type] = useState<string>('chat');
   const [chat_key, set_chat_key] = useState<number>(0);
@@ -914,7 +916,7 @@ export default function HazoChatTestPage() {
                     <div className="h-full">
                       <HazoChat
                         key={`sheet-${chat_key}`}
-                        receiver_user_id={selected_user_id}
+                        chat_group_id={selected_chat_group_id}
                         reference_id={reference_id}
                         reference_type={reference_type}
                         additional_references={test_files.map(file => ({
@@ -952,7 +954,7 @@ export default function HazoChatTestPage() {
                   <DialogContent className="max-w-4xl h-[80vh] p-0 gap-0">
                     <HazoChat
                       key={`dialog-${chat_key}`}
-                      receiver_user_id={selected_user_id}
+                      chat_group_id={selected_chat_group_id}
                       reference_id={reference_id}
                       reference_type={reference_type}
                       additional_references={test_files.map(file => ({
@@ -990,15 +992,18 @@ export default function HazoChatTestPage() {
       <div className="container mx-auto px-4 py-8">
         {/* Test Inputs (Testing Only) */}
         <div className="cls_user_selection mb-6 flex flex-wrap items-center gap-4">
-          {/* User Selection */}
+          {/* Chat Group Selection (v3.0) */}
           <div className="flex items-center gap-2">
             <label className="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
-              Chat with:
+              Chat Group ID:
             </label>
-            <UserCombobox
-              value={selected_user_id}
-              onValueChange={(userId) => set_selected_user_id(userId)}
-              placeholder="Select a user to chat with..."
+            <Input
+              type="text"
+              value={selected_chat_group_id}
+              onChange={(e) => set_selected_chat_group_id(e.target.value)}
+              placeholder="e.g. test-chat-group-001"
+              className="w-48"
+              aria-label="Chat Group ID input"
             />
           </div>
           
@@ -1051,7 +1056,7 @@ export default function HazoChatTestPage() {
             <div className="cls_chat_container bg-white dark:bg-slate-900 rounded-xl shadow-lg border overflow-hidden h-[700px]">
               <HazoChat
                 key={`embedded-${chat_key}`}
-                receiver_user_id={selected_user_id}
+                chat_group_id={selected_chat_group_id}
                 reference_id={reference_id}
                 reference_type={reference_type}
                 additional_references={test_files.map(file => ({

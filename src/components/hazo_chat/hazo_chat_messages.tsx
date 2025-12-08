@@ -198,10 +198,10 @@ function HazoChatMessagesInner({
       return;
     }
 
-    // Filter to only unread messages received by current user
+    // Filter to only unread messages not sent by current user
+    // In group chat, any message not sent by the current user can be marked as read
     const unread_messages = messages.filter(
       (msg) =>
-        msg.receiver_user_id === current_user_id &&
         msg.sender_user_id !== current_user_id &&
         !msg.read_at &&
         !marked_as_read_ref.current.has(msg.id)

@@ -44,7 +44,7 @@ export interface ChatMessageDB {
   reference_id: string;
   reference_type: string;
   sender_user_id: string;
-  receiver_user_id: string;
+  chat_group_id: string;
   message_text: string | null;
   reference_list: ChatReferenceItem[] | null;
   read_at: string | null;
@@ -58,7 +58,6 @@ export interface ChatMessageDB {
  */
 export interface ChatMessage extends ChatMessageDB {
   sender_profile?: HazoUserProfile;
-  receiver_profile?: HazoUserProfile;
   is_sender: boolean;
   send_status?: MessageSendStatus;
 }
@@ -74,9 +73,69 @@ export type MessageSendStatus = 'sending' | 'sent' | 'failed';
 export interface CreateMessagePayload {
   reference_id: string;
   reference_type: string;
-  receiver_user_id: string;
+  chat_group_id: string;
   message_text: string;
   reference_list?: ChatReferenceItem[];
+}
+
+// ============================================================================
+// Chat Group Types
+// ============================================================================
+
+/**
+ * Type of chat group
+ * - 'support': Client-to-staff support conversation
+ * - 'peer': Peer-to-peer direct message (1:1)
+ * - 'group': Multi-user group conversation
+ */
+export type ChatGroupType = 'support' | 'peer' | 'group';
+
+/**
+ * Role of a user within a chat group
+ * - 'client': Customer/end-user in support scenarios
+ * - 'staff': Support personnel in support scenarios
+ * - 'owner': Creator of peer/group chats
+ * - 'admin': Delegated administrator in group chats
+ * - 'member': Standard participant in peer/group chats
+ */
+export type ChatGroupUserRole = 'client' | 'staff' | 'owner' | 'admin' | 'member';
+
+/**
+ * Database schema for hazo_chat_group table
+ */
+export interface ChatGroup {
+  id: string;
+  /** The fixed client user (optional - only for support groups) */
+  client_user_id?: string | null;
+  /** Type of conversation: 'support', 'peer', or 'group' */
+  group_type?: ChatGroupType;
+  name?: string;
+  created_at: string;
+  changed_at: string | null;
+}
+
+/**
+ * Database schema for hazo_chat_group_users table
+ */
+export interface ChatGroupUser {
+  chat_group_id: string;
+  user_id: string;
+  role: ChatGroupUserRole;
+  created_at: string;
+  changed_at: string | null;
+}
+
+/**
+ * Chat group with members and profiles attached
+ */
+export interface ChatGroupWithMembers extends ChatGroup {
+  members: ChatGroupUser[];
+  /** Profile of the client user (for support groups) */
+  client_profile?: HazoUserProfile;
+  /** Profiles of all group members */
+  member_profiles?: HazoUserProfile[];
+  /** Profile of the group owner (for peer/group chats) */
+  owner_profile?: HazoUserProfile;
 }
 
 // ============================================================================
@@ -160,13 +219,13 @@ export interface FileValidationResult {
 
 /**
  * Main HazoChat component props
- * 
+ *
  * This component uses API calls internally - no database adapters needed.
  * Consumers must set up the required API routes (see SETUP_CHECKLIST.md).
  */
 export interface HazoChatProps {
-  /** UUID of the chat recipient (required) */
-  receiver_user_id: string;
+  /** UUID of the chat group (required) */
+  chat_group_id: string;
   /** Main field reference ID for chat context grouping */
   reference_id?: string;
   /** Reference type for the main reference (default: 'chat') */
@@ -439,9 +498,9 @@ export interface RealtimeTransport {
   /** Get current connection status */
   getStatus(): PollingStatus;
 
-  /** Subscribe to events for a specific conversation */
+  /** Subscribe to events for a specific chat group */
   subscribe(
-    receiver_user_id: string,
+    chat_group_id: string,
     reference_id?: string,
     handler?: TransportEventHandler
   ): void;

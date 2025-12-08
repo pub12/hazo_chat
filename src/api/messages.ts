@@ -24,7 +24,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createCrudService, getSqliteAdminService } from 'hazo_connect/server';
 import type { HazoConnectAdapter } from 'hazo_connect';
-import type { MessagesHandlerOptions, ChatMessageInput, ChatMessageRecord, ApiErrorResponse, ApiSuccessResponse } from './types.js';
+import type { MessagesHandlerOptions, ChatMessageInput, ChatMessageRecord, ChatGroupUserRecord, ApiErrorResponse, ApiSuccessResponse } from './types.js';
 
 // ============================================================================
 // Constants for validation
@@ -91,6 +91,30 @@ async function defaultGetUserIdFromRequest(): Promise<string | null> {
 }
 
 /**
+ * Verify that a user is a member of a chat group
+ * @returns The membership record if found, null otherwise
+ */
+async function verifyGroupMembership(
+  hazoConnect: HazoConnectAdapter,
+  user_id: string,
+  chat_group_id: string
+): Promise<ChatGroupUserRecord | null> {
+  const membershipService = createCrudService<ChatGroupUserRecord>(hazoConnect, 'hazo_chat_group_users');
+
+  try {
+    const memberships = await membershipService.list((qb) =>
+      qb.select('*')
+        .where('chat_group_id', 'eq', chat_group_id)
+        .where('user_id', 'eq', user_id)
+    );
+    return memberships[0] || null;
+  } catch (error) {
+    console.error('[hazo_chat] Error verifying group membership:', error);
+    return null;
+  }
+}
+
+/**
  * Creates GET and POST handlers for chat messages
  * 
  * @param options - Configuration options
@@ -103,7 +127,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
    * GET handler - Fetch chat messages with pagination
    *
    * Query params:
-   * - receiver_user_id (required): The other user in the conversation
+   * - chat_group_id (required): The chat group to fetch messages from
    * - reference_id (optional): Filter by reference ID
    * - reference_type (optional): Filter by reference type
    * - limit (optional): Number of messages per page (default: 50, max: 100)
@@ -124,7 +148,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
 
       // Get query params
       const { searchParams } = new URL(request.url);
-      const receiver_user_id = searchParams.get('receiver_user_id');
+      const chat_group_id = searchParams.get('chat_group_id');
       const reference_id = searchParams.get('reference_id') || '';
       const reference_type = searchParams.get('reference_type') || '';
       const cursor = searchParams.get('cursor') || '';
@@ -132,9 +156,22 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
       const limit_param = searchParams.get('limit');
 
       // Validate required params
-      if (!receiver_user_id) {
-        console.error('[hazo_chat/messages GET] Missing receiver_user_id');
-        return createErrorResponse('receiver_user_id is required', 400, 'MISSING_RECEIVER');
+      if (!chat_group_id) {
+        console.error('[hazo_chat/messages GET] Missing chat_group_id');
+        return createErrorResponse('chat_group_id is required', 400, 'MISSING_CHAT_GROUP');
+      }
+
+      // Get hazo_connect instance early for membership check
+      const hazoConnect = getHazoConnect() as HazoConnectAdapter;
+
+      // Verify user is a member of the chat group
+      const membership = await verifyGroupMembership(hazoConnect, current_user_id, chat_group_id);
+      if (!membership) {
+        console.error('[hazo_chat/messages GET] User is not a member of chat group:', {
+          current_user_id,
+          chat_group_id,
+        });
+        return createErrorResponse('Access denied - not a member of this chat group', 403, 'FORBIDDEN');
       }
 
       // Validate input lengths
@@ -166,7 +203,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
 
       console.log('[hazo_chat/messages GET] Fetching messages:', {
         current_user_id,
-        receiver_user_id,
+        chat_group_id,
         reference_id,
         reference_type,
         cursor,
@@ -174,8 +211,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
         limit,
       });
 
-      // Get hazo_connect instance and create CRUD service
-      const hazoConnect = getHazoConnect() as HazoConnectAdapter;
+      // Create CRUD service (hazoConnect already obtained above)
       const chatService = createCrudService<ChatMessageRecord>(hazoConnect, 'hazo_chat');
 
       let messages: ChatMessageRecord[] = [];
@@ -184,6 +220,9 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
         // Build query with proper filtering
         const all_messages = await chatService.list((qb) => {
           let builder = qb.select('*');
+
+          // Filter by chat group - this is the primary filter
+          builder = builder.where('chat_group_id', 'eq', chat_group_id);
 
           // Filter by reference if provided
           if (reference_id) {
@@ -214,16 +253,8 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
           return builder;
         });
 
-        // Filter to only messages between current user and receiver
-        // Also exclude deleted messages
-        const filtered_messages = all_messages.filter((msg) => {
-          if (msg.deleted_at) return false;
-          const is_sent_by_me =
-            msg.sender_user_id === current_user_id && msg.receiver_user_id === receiver_user_id;
-          const is_sent_to_me =
-            msg.sender_user_id === receiver_user_id && msg.receiver_user_id === current_user_id;
-          return is_sent_by_me || is_sent_to_me;
-        });
+        // Filter out deleted messages (membership check already done above)
+        const filtered_messages = all_messages.filter((msg) => !msg.deleted_at);
 
         // Apply limit after filtering
         messages = filtered_messages.slice(0, limit);
@@ -269,7 +300,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
    * POST handler - Create a new chat message
    *
    * Request body:
-   * - receiver_user_id (required): The recipient user ID
+   * - chat_group_id (required): The chat group to send the message to
    * - message_text (required): The message content (max 5000 chars)
    * - reference_id (optional): Reference ID for context grouping
    * - reference_type (optional): Reference type (default: 'chat')
@@ -288,12 +319,25 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
 
       // Parse request body
       const body: ChatMessageInput = await request.json();
-      const { receiver_user_id, message_text, reference_id, reference_type } = body;
+      const { chat_group_id, message_text, reference_id, reference_type } = body;
 
       // Validate required fields
-      if (!receiver_user_id) {
-        console.error('[hazo_chat/messages POST] Missing receiver_user_id');
-        return createErrorResponse('receiver_user_id is required', 400, 'MISSING_RECEIVER');
+      if (!chat_group_id) {
+        console.error('[hazo_chat/messages POST] Missing chat_group_id');
+        return createErrorResponse('chat_group_id is required', 400, 'MISSING_CHAT_GROUP');
+      }
+
+      // Get hazo_connect instance early for membership check
+      const hazoConnect = getHazoConnect() as HazoConnectAdapter;
+
+      // Verify user is a member of the chat group
+      const membership = await verifyGroupMembership(hazoConnect, sender_user_id, chat_group_id);
+      if (!membership) {
+        console.error('[hazo_chat/messages POST] User is not a member of chat group:', {
+          sender_user_id,
+          chat_group_id,
+        });
+        return createErrorResponse('Access denied - not a member of this chat group', 403, 'FORBIDDEN');
       }
 
       // Validate message_text
@@ -340,8 +384,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
         );
       }
 
-      // Get hazo_connect instance and create CRUD service
-      const hazoConnect = getHazoConnect() as HazoConnectAdapter;
+      // Create CRUD service (hazoConnect already obtained above)
       const chatService = createCrudService<ChatMessageRecord>(hazoConnect, 'hazo_chat');
 
       // Generate message ID and timestamps
@@ -354,7 +397,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
         reference_id: reference_id || '',
         reference_type: reference_type || 'chat',
         sender_user_id,
-        receiver_user_id,
+        chat_group_id,
         message_text: trimmed_message,
         reference_list: null,
         read_at: null,
@@ -366,7 +409,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
       console.log('[hazo_chat/messages POST] Saving message:', {
         id: message_id,
         sender_user_id,
-        receiver_user_id,
+        chat_group_id,
         reference_id: reference_id || '',
         reference_type: reference_type || 'chat',
         message_length: trimmed_message.length,
@@ -387,7 +430,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
         message: {
           id: message_id,
           sender_user_id,
-          receiver_user_id,
+          chat_group_id,
           reference_id: reference_id || '',
           reference_type: reference_type || 'chat',
           message_text: trimmed_message,
@@ -488,16 +531,29 @@ export function createMarkAsReadHandler(options: MessagesHandlerOptions) {
         );
       }
 
-      // Verify that the current user is the receiver (only receivers can mark as read)
-      if (message.receiver_user_id !== current_user_id) {
-        console.error('[hazo_chat/messages/[id]/read PATCH] User is not the receiver:', {
+      // Verify that the current user is a member of the chat group
+      const membership = await verifyGroupMembership(hazoConnect, current_user_id, message.chat_group_id);
+      if (!membership) {
+        console.error('[hazo_chat/messages/[id]/read PATCH] User is not a member of chat group:', {
           message_id,
           current_user_id,
-          receiver_user_id: message.receiver_user_id,
+          chat_group_id: message.chat_group_id,
         });
         return NextResponse.json(
-          { success: false, error: 'Unauthorized - only the receiver can mark messages as read' },
+          { success: false, error: 'Unauthorized - not a member of this chat group' },
           { status: 403 }
+        );
+      }
+
+      // Cannot mark your own messages as read
+      if (message.sender_user_id === current_user_id) {
+        console.error('[hazo_chat/messages/[id]/read PATCH] User cannot mark own message as read:', {
+          message_id,
+          current_user_id,
+        });
+        return NextResponse.json(
+          { success: false, error: 'Cannot mark your own messages as read' },
+          { status: 400 }
         );
       }
 
@@ -644,6 +700,21 @@ export function createDeleteHandler(options: MessagesHandlerOptions) {
       if (!message) {
         console.error('[hazo_chat/messages/[id] DELETE] Message not found:', message_id);
         return createErrorResponse('Message not found', 404, 'MESSAGE_NOT_FOUND');
+      }
+
+      // Verify that the current user is a member of the chat group
+      const membership = await verifyGroupMembership(hazoConnect, current_user_id, message.chat_group_id);
+      if (!membership) {
+        console.error('[hazo_chat/messages/[id] DELETE] User is not a member of chat group:', {
+          message_id,
+          current_user_id,
+          chat_group_id: message.chat_group_id,
+        });
+        return createErrorResponse(
+          'Unauthorized - not a member of this chat group',
+          403,
+          'FORBIDDEN'
+        );
       }
 
       // Verify that the current user is the sender (only senders can delete their messages)

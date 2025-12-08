@@ -49,7 +49,7 @@ import { useFileUpload } from '../../hooks/use_file_upload.js';
 // ============================================================================
 
 interface HazoChatInnerProps {
-  receiver_user_id: string;
+  chat_group_id: string;
   reference_id?: string;
   reference_type?: string;
   api_base_url?: string;
@@ -68,7 +68,7 @@ interface HazoChatInnerProps {
 }
 
 function HazoChatInner({
-  receiver_user_id,
+  chat_group_id,
   reference_id = '',
   reference_type = 'chat',
   api_base_url = '/api/hazo_chat',
@@ -116,7 +116,7 @@ function HazoChatInner({
     polling_status,
     refresh: refresh_messages
   } = useChatMessages({
-    receiver_user_id,
+    chat_group_id,
     reference_id,
     reference_type,
     api_base_url,
@@ -213,7 +213,7 @@ function HazoChatInner({
       const payload: CreateMessagePayload = {
         reference_id: reference_id || '',
         reference_type,
-        receiver_user_id,
+        chat_group_id,
         message_text: text,
         reference_list: attachment_refs.length > 0 ? attachment_refs : undefined
       };
@@ -230,7 +230,7 @@ function HazoChatInner({
       current_user,
       reference_id,
       reference_type,
-      receiver_user_id,
+      chat_group_id,
       upload_all,
       send_message,
       clear_pending_attachments,
@@ -483,7 +483,7 @@ function HazoChatInner({
  */
 export function HazoChat(props: HazoChatProps) {
   const {
-    receiver_user_id,
+    chat_group_id,
     reference_id,
     reference_type = 'chat',
     api_base_url = '/api/hazo_chat',
@@ -518,7 +518,7 @@ export function HazoChat(props: HazoChatProps) {
         initial_references={initial_refs}
       >
         <HazoChatInner
-          receiver_user_id={receiver_user_id}
+          chat_group_id={chat_group_id}
           reference_id={reference_id}
           reference_type={reference_type}
           api_base_url={api_base_url}

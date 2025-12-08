@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Package Overview
 
-hazo_chat is a React/Next.js chat component library (v2.x) for 1-1 communication with document sharing. It uses an **API-first architecture** where all data access occurs through fetch() calls to Next.js API endpoints - no server-side dependencies in client components.
+hazo_chat is a React/Next.js chat component library (v3.x) for group-based communication with document sharing. It uses an **API-first architecture** where all data access occurs through fetch() calls to Next.js API endpoints - no server-side dependencies in client components.
+
+**Architecture:** Group-based chat supporting multiple users in a single chat group. Designed for scenarios where multiple support staff can rotate on a single client chat session.
 
 ## Build Commands
 
@@ -101,30 +103,80 @@ import { DEFAULT_POLLING_INTERVAL, MIME_TYPE_MAP } from 'hazo_chat/lib';
 
 ## Database Schema
 
-Single table `hazo_chat` with fields:
+### PostgreSQL Enum Types (hazo_enum_)
+
+For PostgreSQL, the following enum types are available:
+
+```sql
+-- Reference type for chat contexts
+CREATE TYPE hazo_enum_chat_type AS ENUM ('chat', 'field', 'project', 'support', 'general');
+
+-- Group type for conversation patterns (v3.1)
+CREATE TYPE hazo_enum_group_type AS ENUM ('support', 'peer', 'group');
+
+-- Membership roles (v3.1)
+CREATE TYPE hazo_enum_group_role AS ENUM ('client', 'staff', 'owner', 'admin', 'member');
+```
+
+### hazo_chat_group (UPDATED in v3.1)
+Group container for chat participants:
+- `id` (UUID) - Group identifier
+- `client_user_id` (UUID, FK → hazo_users.id, **NULLABLE**) - The fixed client (for support groups only)
+- `group_type` ('support' | 'peer' | 'group') - **NEW in v3.1**: Type of conversation
+- `name` (varchar, optional) - Group name
+- `created_at`, `changed_at` (timestamps)
+
+**Group Types:**
+- `'support'`: Client-to-staff support conversation (has designated client)
+- `'peer'`: Peer-to-peer direct message (1:1, no fixed client)
+- `'group'`: Multi-user group conversation (no fixed client)
+
+### hazo_chat_group_users (UPDATED in v3.1)
+Group membership and roles:
+- `chat_group_id` (UUID, FK → hazo_chat_group.id)
+- `user_id` (UUID, FK → hazo_users.id)
+- `role` ('client' | 'staff' | 'owner' | 'admin' | 'member') - **EXPANDED in v3.1**
+- `created_at`, `changed_at` (timestamps)
+- PRIMARY KEY (chat_group_id, user_id)
+
+**Role Types:**
+- `'client'`: Customer/end-user in support scenarios
+- `'staff'`: Support personnel in support scenarios
+- `'owner'`: Creator of peer/group chats
+- `'admin'`: Delegated administrator in group chats
+- `'member'`: Standard participant in peer/group chats
+
+### hazo_chat (MODIFIED in v3.0)
+Chat messages table:
 - `id`, `reference_id`, `reference_type`
-- `sender_user_id`, `receiver_user_id`
-- `message_text`, `reference_list` (JSON array)
+- `sender_user_id` (UUID, FK → hazo_users.id)
+- `chat_group_id` (UUID, FK → hazo_chat_group.id) - **CHANGED from receiver_user_id**
+- `message_text`, `reference_list` (JSONB array)
 - `read_at`, `deleted_at`, `created_at`, `changed_at`
 
 ## Required API Endpoints
 
 The component expects these endpoints (use handler factories):
 
-| Endpoint | Method | Handler |
-|----------|--------|---------|
-| `/api/hazo_chat/messages` | GET, POST | `createMessagesHandler` |
-| `/api/hazo_chat/messages/[id]` | DELETE | `createDeleteHandler` |
-| `/api/hazo_chat/messages/[id]/read` | PATCH | `createMarkAsReadHandler` |
-| `/api/hazo_auth/me` | GET | Returns current user |
-| `/api/hazo_auth/profiles` | POST | Batch fetch user profiles |
+| Endpoint | Method | Handler | Query/Body Params |
+|----------|--------|---------|-------------------|
+| `/api/hazo_chat/messages` | GET | `createMessagesHandler` | `chat_group_id` (required) |
+| `/api/hazo_chat/messages` | POST | `createMessagesHandler` | `{ chat_group_id, message_text, ... }` |
+| `/api/hazo_chat/messages/[id]` | DELETE | `createDeleteHandler` | - |
+| `/api/hazo_chat/messages/[id]/read` | PATCH | `createMarkAsReadHandler` | - |
+| `/api/hazo_auth/me` | GET | Returns current user | - |
+| `/api/hazo_auth/profiles` | POST | Batch fetch user profiles | `{ user_ids: [...] }` |
+
+**Breaking Change (v3.0):** GET/POST messages now use `chat_group_id` instead of `receiver_user_id`.
 
 ## API Features
 
+- **Group Membership**: All endpoints verify user is a member of the chat group
 - **Pagination**: GET supports `limit`, `cursor`, `direction` params
 - **Validation**: Message length (max 5000), reference_id/type length limits
 - **Standardized errors**: `ApiErrorResponse` with `error_code` field
 - **Soft delete**: DELETE sets `deleted_at`, clears `message_text`
+- **Read Receipts**: Any group member (except sender) can mark messages as read
 
 ## Polling & Real-time
 
@@ -146,6 +198,45 @@ The component expects these endpoints (use handler factories):
 - `next` >=14.0.0
 - `react`, `react-dom` ^18.0.0
 - `tailwindcss` >=3.0.0
+
+## Component Props (Breaking Changes in v3.0)
+
+**HazoChat component:**
+- `chat_group_id` (string, required) - **CHANGED from `receiver_user_id`**
+- `reference_id`, `reference_type` (unchanged)
+- All other props remain the same
+
+**useChatMessages hook:**
+- `chat_group_id` (string, required) - **CHANGED from `receiver_user_id`**
+- All other params remain the same
+
+**Type Changes (v3.0):**
+- `ChatMessage`: Removed `receiver_profile` field
+- `CreateMessagePayload`: `chat_group_id` replaces `receiver_user_id`
+- NEW: `ChatGroup`, `ChatGroupUser`, `ChatGroupWithMembers` types
+- NEW: `ChatGroupUserRole` type: 'client' | 'staff'
+
+**Type Changes (v3.1 - Generic Schema):**
+- `ChatGroup.client_user_id`: Changed from required to optional (nullable)
+- NEW: `ChatGroupType` type: 'support' | 'peer' | 'group'
+- NEW: `ChatGroup.group_type` field
+- `ChatGroupUserRole`: EXPANDED to include 'owner' | 'admin' | 'member'
+- `ChatGroupWithMembers`: Added `owner_profile` field
+
+## Unread Count Function Changes (v3.0)
+
+**Function signature changed:**
+```typescript
+// v2.x
+createUnreadCountFunction({ user_id: string })
+
+// v3.0
+createUnreadCountFunction({ user_id: string, chat_group_ids?: string[] })
+```
+
+**Return format changed:**
+- Now groups by `chat_group_id` instead of `reference_id`
+- Returns `{ chat_group_id: string, count: number }[]`
 
 ## Test App
 

@@ -1,6 +1,8 @@
-# hazo_chat Setup Checklist (v2.0)
+# hazo_chat Setup Checklist (v3.0)
 
 A comprehensive, step-by-step guide for setting up hazo_chat in a Next.js project. This checklist is designed for both AI assistants and human developers.
+
+**Version 3.0 Changes:** This version introduces group-based chat architecture. See [Migration from v2.x](#migration-from-v2x-to-v30) section for upgrade instructions.
 
 ---
 
@@ -16,6 +18,8 @@ A comprehensive, step-by-step guide for setting up hazo_chat in a Next.js projec
 8. [UI Design Standards Compliance](#8-ui-design-standards-compliance)
 9. [Verification Checklist](#9-verification-checklist)
 10. [Troubleshooting](#10-troubleshooting)
+11. [Migration from v2.x to v3.0](#migration-from-v2x-to-v30)
+12. [Migration from v3.0 to v3.1](#migration-from-v30-to-v31-generic-schema)
 
 ---
 
@@ -71,30 +75,130 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 ```
 
-#### Step 3.1.2: Create Enum Types (Optional but Recommended)
+#### Step 3.1.2: Create Enum Types (Recommended)
 
-Create enum types for reference types to ensure data integrity:
+Create enum types for data integrity. All enums are prefixed with `hazo_enum_`:
 
 ```sql
--- Create enum for reference types
-CREATE TYPE hazo_enum_chat_type AS ENUM ('chat', 'field', 'project', 'support', 'general');
+-- ============================================================================
+-- ENUM TYPE DEFINITIONS (PostgreSQL)
+-- ============================================================================
 
--- Note: If you need to add more enum values later, use:
--- ALTER TYPE hazo_chat_reference_type ADD VALUE 'new_type';
+-- 1. Reference type enum - for categorizing chat contexts
+CREATE TYPE hazo_enum_chat_type AS ENUM (
+  'chat',      -- General chat
+  'field',     -- Form field reference
+  'project',   -- Project-related
+  'support',   -- Support ticket
+  'general'    -- General purpose
+);
+
+-- 2. Group type enum (v3.1) - for identifying conversation patterns
+CREATE TYPE hazo_enum_group_type AS ENUM (
+  'support',   -- Client-to-staff support conversation
+  'peer',      -- Peer-to-peer direct message (1:1)
+  'group'      -- Multi-user group conversation
+);
+
+-- 3. Group user role enum (v3.1) - for membership roles
+CREATE TYPE hazo_enum_group_role AS ENUM (
+  'client',    -- Customer/end-user in support scenarios
+  'staff',     -- Support personnel in support scenarios
+  'owner',     -- Creator of peer/group chats
+  'admin',     -- Delegated administrator in group chats
+  'member'     -- Standard participant in peer/group chats
+);
+
+-- Note: To add new enum values later, use:
+-- ALTER TYPE hazo_enum_chat_type ADD VALUE 'new_value';
+-- ALTER TYPE hazo_enum_group_type ADD VALUE 'new_value';
+-- ALTER TYPE hazo_enum_group_role ADD VALUE 'new_value';
 ```
 
-#### Step 3.1.3: Create hazo_chat Table
+#### Step 3.1.3: Create hazo_chat_group Table (UPDATED in v3.1)
+
+Create the chat group container table:
+
+```sql
+
+-- hazo_chat_group table for group-based chat (PostgreSQL)
+-- UPDATED in v3.1: client_user_id is now nullable, added group_type
+CREATE TABLE IF NOT EXISTS hazo_chat_group (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_user_id UUID REFERENCES hazo_users(id),  -- Nullable for peer/group chats
+  group_type hazo_enum_group_type DEFAULT 'support',  -- Type of conversation
+  name VARCHAR(255),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Performance indexes
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_group_client ON hazo_chat_group(client_user_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_group_type ON hazo_chat_group(group_type);
+```
+
+**Group Types:**
+- `'support'`: Client-to-staff support conversation (has designated `client_user_id`)
+- `'peer'`: Peer-to-peer direct message (1:1, no `client_user_id`)
+- `'group'`: Multi-user group conversation (no `client_user_id`)
+
+#### Step 3.1.4: Create hazo_chat_group_users Table (UPDATED in v3.1)
+
+Create the group membership table:
+
+```sql
+-- hazo_chat_group_users table for group membership (PostgreSQL)
+-- UPDATED in v3.1: uses hazo_enum_group_role enum type
+CREATE TABLE IF NOT EXISTS hazo_chat_group_users (
+  chat_group_id UUID NOT NULL REFERENCES hazo_chat_group(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES hazo_users(id) ON DELETE CASCADE,
+  role hazo_enum_group_role NOT NULL DEFAULT 'member',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (chat_group_id, user_id)
+);
+
+-- Performance indexes
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_group_users_user ON hazo_chat_group_users(user_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_group_users_group ON hazo_chat_group_users(chat_group_id);
+```
+
+**Alternative: Without Enum Type (More Flexible)**
+
+If you prefer flexibility over strict enum validation:
+
+```sql
+-- hazo_chat_group_users table with VARCHAR role (more flexible)
+CREATE TABLE IF NOT EXISTS hazo_chat_group_users (
+  chat_group_id UUID NOT NULL REFERENCES hazo_chat_group(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES hazo_users(id) ON DELETE CASCADE,
+  role VARCHAR(20) NOT NULL CHECK (role IN ('client', 'staff', 'owner', 'admin', 'member')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (chat_group_id, user_id)
+);
+```
+
+**Role Types:**
+- `'client'`: Customer/end-user in support scenarios
+- `'staff'`: Support personnel in support scenarios
+- `'owner'`: Creator of peer/group chats
+- `'admin'`: Delegated administrator in group chats
+- `'member'`: Standard participant in peer/group chats
+
+#### Step 3.1.5: Create hazo_chat Table (MODIFIED in v3.0)
 
 Create the chat messages table with UUID types and proper defaults:
 
 ```sql
 -- hazo_chat table for storing chat messages (PostgreSQL)
+-- MODIFIED in v3.0: receiver_user_id replaced with chat_group_id
 CREATE TABLE IF NOT EXISTS hazo_chat (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   reference_id UUID NOT NULL,
   reference_type hazo_enum_chat_type DEFAULT 'chat' NOT NULL,
   sender_user_id UUID NOT NULL,
-  receiver_user_id UUID NOT NULL,
+  chat_group_id UUID NOT NULL REFERENCES hazo_chat_group(id),  -- CHANGED from receiver_user_id
   message_text TEXT,
   reference_list JSONB,
   read_at TIMESTAMPTZ,
@@ -106,14 +210,11 @@ CREATE TABLE IF NOT EXISTS hazo_chat (
 -- Performance indexes
 CREATE INDEX IF NOT EXISTS idx_hazo_chat_reference_id ON hazo_chat(reference_id);
 CREATE INDEX IF NOT EXISTS idx_hazo_chat_sender ON hazo_chat(sender_user_id);
-CREATE INDEX IF NOT EXISTS idx_hazo_chat_receiver ON hazo_chat(receiver_user_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_group ON hazo_chat(chat_group_id);  -- CHANGED from receiver index
 CREATE INDEX IF NOT EXISTS idx_hazo_chat_created ON hazo_chat(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_hazo_chat_reference_type ON hazo_chat(reference_type);
 CREATE INDEX IF NOT EXISTS idx_hazo_chat_read_at ON hazo_chat(read_at) WHERE read_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_hazo_chat_deleted_at ON hazo_chat(deleted_at) WHERE deleted_at IS NOT NULL;
-
--- Composite index for common query pattern
-CREATE INDEX IF NOT EXISTS idx_hazo_chat_receiver_reference ON hazo_chat(receiver_user_id, reference_id);
 ```
 
 **Alternative: Without Enum Type (More Flexible)**
@@ -122,12 +223,13 @@ If you prefer flexibility over strict enum validation:
 
 ```sql
 -- hazo_chat table with TEXT reference_type (more flexible)
+-- MODIFIED in v3.0: receiver_user_id replaced with chat_group_id
 CREATE TABLE IF NOT EXISTS hazo_chat (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   reference_id UUID NOT NULL,
   reference_type TEXT DEFAULT 'chat' NOT NULL,
   sender_user_id UUID NOT NULL,
-  receiver_user_id UUID NOT NULL,
+  chat_group_id UUID NOT NULL REFERENCES hazo_chat_group(id),  -- CHANGED from receiver_user_id
   message_text TEXT,
   reference_list JSONB,
   read_at TIMESTAMPTZ,
@@ -136,15 +238,14 @@ CREATE TABLE IF NOT EXISTS hazo_chat (
   changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Performance indexes (same as above)
+-- Performance indexes
 CREATE INDEX IF NOT EXISTS idx_hazo_chat_reference_id ON hazo_chat(reference_id);
 CREATE INDEX IF NOT EXISTS idx_hazo_chat_sender ON hazo_chat(sender_user_id);
-CREATE INDEX IF NOT EXISTS idx_hazo_chat_receiver ON hazo_chat(receiver_user_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_group ON hazo_chat(chat_group_id);  -- CHANGED from receiver index
 CREATE INDEX IF NOT EXISTS idx_hazo_chat_created ON hazo_chat(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_hazo_chat_reference_type ON hazo_chat(reference_type);
 CREATE INDEX IF NOT EXISTS idx_hazo_chat_read_at ON hazo_chat(read_at) WHERE read_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_hazo_chat_deleted_at ON hazo_chat(deleted_at) WHERE deleted_at IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_hazo_chat_receiver_reference ON hazo_chat(receiver_user_id, reference_id);
 ```
 
 #### Step 3.1.4: Ensure Users Table Exists (PostgreSQL)
@@ -168,53 +269,32 @@ CREATE INDEX IF NOT EXISTS idx_hazo_users_email ON hazo_users(email_address);
 CREATE INDEX IF NOT EXISTS idx_hazo_users_active ON hazo_users(is_active) WHERE is_active = TRUE;
 ```
 
-#### Step 3.1.5: Add Foreign Key Constraints (Optional)
+#### Step 3.1.6: Add Foreign Key Constraints (Optional)
 
 Add foreign key constraints for referential integrity:
 
 ```sql
 -- Add foreign key constraints (optional but recommended)
+-- MODIFIED in v3.0: receiver_user_id constraint replaced with chat_group_id
 ALTER TABLE hazo_chat
-  ADD CONSTRAINT fk_hazo_chat_sender 
-    FOREIGN KEY (sender_user_id) 
-    REFERENCES hazo_users(id) 
+  ADD CONSTRAINT fk_hazo_chat_sender
+    FOREIGN KEY (sender_user_id)
+    REFERENCES hazo_users(id)
     ON DELETE RESTRICT,
-  ADD CONSTRAINT fk_hazo_chat_receiver 
-    FOREIGN KEY (receiver_user_id) 
-    REFERENCES hazo_users(id) 
-    ON DELETE RESTRICT;
+  ADD CONSTRAINT fk_hazo_chat_group
+    FOREIGN KEY (chat_group_id)
+    REFERENCES hazo_chat_group(id)
+    ON DELETE CASCADE;
 ```
 
 ### Step 3.2: SQLite Setup (Alternative)
 
-For SQLite databases (development/testing), use this simplified schema:
+For SQLite databases (development/testing), use this simplified schema.
+
+#### Step 3.2.1: Create hazo_users Table (SQLite)
 
 ```sql
--- hazo_chat table for storing chat messages (SQLite)
-CREATE TABLE IF NOT EXISTS hazo_chat (
-  id TEXT PRIMARY KEY,
-  reference_id TEXT NOT NULL,
-  reference_type TEXT DEFAULT 'chat',
-  sender_user_id TEXT NOT NULL,
-  receiver_user_id TEXT NOT NULL,
-  message_text TEXT,
-  reference_list TEXT,
-  read_at TEXT,
-  deleted_at TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  changed_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
--- Performance indexes
-CREATE INDEX IF NOT EXISTS idx_hazo_chat_reference_id ON hazo_chat(reference_id);
-CREATE INDEX IF NOT EXISTS idx_hazo_chat_sender ON hazo_chat(sender_user_id);
-CREATE INDEX IF NOT EXISTS idx_hazo_chat_receiver ON hazo_chat(receiver_user_id);
-CREATE INDEX IF NOT EXISTS idx_hazo_chat_created ON hazo_chat(created_at DESC);
-```
-
-**SQLite Users Table:**
-
-```sql
+-- Users table for SQLite
 CREATE TABLE IF NOT EXISTS hazo_users (
   id TEXT PRIMARY KEY,
   email_address TEXT UNIQUE NOT NULL,
@@ -224,6 +304,91 @@ CREATE TABLE IF NOT EXISTS hazo_users (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   changed_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Indexes for users table
+CREATE INDEX IF NOT EXISTS idx_hazo_users_email ON hazo_users(email_address);
+```
+
+#### Step 3.2.2: Create hazo_chat_group Table (SQLite - UPDATED in v3.1)
+
+```sql
+-- hazo_chat_group table for group-based chat (SQLite)
+-- UPDATED in v3.1: client_user_id is now nullable, added group_type
+CREATE TABLE IF NOT EXISTS hazo_chat_group (
+  id TEXT PRIMARY KEY,
+  client_user_id TEXT,  -- Nullable for peer/group chats
+  group_type TEXT DEFAULT 'support' CHECK (group_type IN ('support', 'peer', 'group')),
+  name TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  changed_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (client_user_id) REFERENCES hazo_users(id)
+);
+
+-- Performance indexes
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_group_client ON hazo_chat_group(client_user_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_group_type ON hazo_chat_group(group_type);
+```
+
+**Group Types:**
+- `'support'`: Client-to-staff support conversation
+- `'peer'`: Peer-to-peer direct message (1:1)
+- `'group'`: Multi-user group conversation
+
+#### Step 3.2.3: Create hazo_chat_group_users Table (SQLite - UPDATED in v3.1)
+
+```sql
+-- hazo_chat_group_users table for group membership (SQLite)
+-- UPDATED in v3.1: expanded role options
+CREATE TABLE IF NOT EXISTS hazo_chat_group_users (
+  chat_group_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('client', 'staff', 'owner', 'admin', 'member')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  changed_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (chat_group_id, user_id),
+  FOREIGN KEY (chat_group_id) REFERENCES hazo_chat_group(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES hazo_users(id) ON DELETE CASCADE
+);
+
+-- Performance indexes
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_group_users_user ON hazo_chat_group_users(user_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_group_users_group ON hazo_chat_group_users(chat_group_id);
+```
+
+**Role Types:**
+- `'client'`: Customer/end-user in support scenarios
+- `'staff'`: Support personnel in support scenarios
+- `'owner'`: Creator of peer/group chats
+- `'admin'`: Delegated administrator in group chats
+- `'member'`: Standard participant in peer/group chats
+
+#### Step 3.2.4: Create hazo_chat Table (SQLite - MODIFIED in v3.0)
+
+```sql
+-- hazo_chat table for storing chat messages (SQLite)
+-- MODIFIED in v3.0: receiver_user_id replaced with chat_group_id
+CREATE TABLE IF NOT EXISTS hazo_chat (
+  id TEXT PRIMARY KEY,
+  reference_id TEXT NOT NULL,
+  reference_type TEXT DEFAULT 'chat',
+  sender_user_id TEXT NOT NULL,
+  chat_group_id TEXT NOT NULL,
+  message_text TEXT,
+  reference_list TEXT,
+  read_at TEXT,
+  deleted_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  changed_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (sender_user_id) REFERENCES hazo_users(id),
+  FOREIGN KEY (chat_group_id) REFERENCES hazo_chat_group(id)
+);
+
+-- Performance indexes
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_reference_id ON hazo_chat(reference_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_sender ON hazo_chat(sender_user_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_group ON hazo_chat(chat_group_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_created ON hazo_chat(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_reference_type ON hazo_chat(reference_type);
 ```
 
 ### Step 3.3: Key Differences Between PostgreSQL and SQLite
@@ -266,16 +431,17 @@ WHERE tablename = 'hazo_chat';
 -- Test UUID generation
 SELECT gen_random_uuid() AS test_uuid;
 
--- Test table insert with defaults (replace UUIDs with valid user IDs)
+-- Test table insert with defaults (v3.0 - uses chat_group_id)
+-- First ensure you have a chat group and the user is a member
 INSERT INTO hazo_chat (
   reference_id,
   sender_user_id,
-  receiver_user_id,
+  chat_group_id,
   message_text
 ) VALUES (
   gen_random_uuid(),
   (SELECT id FROM hazo_users LIMIT 1),  -- Use existing user ID
-  (SELECT id FROM hazo_users LIMIT 1),  -- Use existing user ID
+  (SELECT id FROM hazo_chat_group LIMIT 1),  -- Use existing chat group ID
   'Test message'
 );
 
@@ -298,16 +464,22 @@ DELETE FROM hazo_chat WHERE message_text = 'Test message';
 **PostgreSQL:**
 - [ ] UUID extension enabled (`uuid-ossp` or `pgcrypto`)
 - [ ] Enum type created (if using enum approach)
-- [ ] `hazo_chat` table exists with UUID columns
+- [ ] `hazo_users` table exists with UUID primary key
+- [ ] `hazo_chat_group` table exists (v3.0)
+- [ ] `hazo_chat_group_users` table exists (v3.0)
+- [ ] `hazo_chat` table exists with `chat_group_id` column (v3.0)
 - [ ] All indexes created successfully
-- [ ] Users table exists with UUID primary key
 - [ ] Can query: `SELECT * FROM hazo_chat LIMIT 1`
 - [ ] UUID default generation works: `INSERT INTO hazo_chat (...) VALUES (...)` generates UUID automatically
 - [ ] Timestamp defaults work: `created_at` and `changed_at` auto-populate
 
 **SQLite:**
-- [ ] `hazo_chat` table exists in database
-- [ ] Users table exists with at least one user
+- [ ] `hazo_users` table exists
+- [ ] `hazo_chat_group` table exists (v3.0)
+- [ ] `hazo_chat_group_users` table exists (v3.0)
+- [ ] `hazo_chat` table exists with `chat_group_id` column (v3.0)
+- [ ] At least one user exists in database
+- [ ] At least one chat group exists with memberships
 - [ ] Can query: `SELECT * FROM hazo_chat LIMIT 1`
 
 ---
@@ -482,8 +654,9 @@ This endpoint is optional but useful for displaying unread message counts or bad
 
 ```typescript
 /**
- * API route to get unread message counts grouped by reference_id
+ * API route to get unread message counts grouped by chat_group_id
  * Uses the exportable library function from hazo_chat
+ * MODIFIED in v3.0: Now uses user_id and optional chat_group_ids
  */
 
 export const dynamic = 'force-dynamic';
@@ -500,36 +673,45 @@ const hazo_chat_get_unread_count = createUnreadCountFunction({
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const receiver_user_id = searchParams.get('receiver_user_id');
+    const user_id = searchParams.get('user_id');
+    const chat_group_ids_param = searchParams.get('chat_group_ids');
 
-    if (!receiver_user_id) {
+    if (!user_id) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: 'receiver_user_id is required',
+        {
+          success: false,
+          error: 'user_id is required',
           unread_counts: []
         },
         { status: 400 }
       );
     }
 
+    // Parse optional chat_group_ids (comma-separated)
+    const chat_group_ids = chat_group_ids_param
+      ? chat_group_ids_param.split(',').filter(Boolean)
+      : undefined;
+
     // Call the library function
-    const unread_counts = await hazo_chat_get_unread_count(receiver_user_id);
+    const unread_counts = await hazo_chat_get_unread_count({
+      user_id,
+      chat_group_ids
+    });
 
     return NextResponse.json({
       success: true,
-      receiver_user_id,
+      user_id,
       unread_counts,
-      total_references: unread_counts.length,
+      total_groups: unread_counts.length,
       total_unread: unread_counts.reduce((sum, item) => sum + item.count, 0)
     });
   } catch (error) {
     const error_message = error instanceof Error ? error.message : 'Unknown error';
     console.error('[hazo_chat/unread_count] Error:', error_message, error);
-    
+
     return NextResponse.json(
-      { 
-        success: false, 
+      {
+        success: false,
         error: error_message,
         unread_counts: []
       },
@@ -539,25 +721,27 @@ export async function GET(request: NextRequest) {
 }
 ```
 
-**What this endpoint does:**
-- Takes `receiver_user_id` as a query parameter
-- Returns an array of objects with `reference_id` and `count` of unread messages
+**What this endpoint does (v3.0):**
+- Takes `user_id` as a required query parameter
+- Takes optional `chat_group_ids` as a comma-separated list to filter specific groups
+- Returns an array of objects with `chat_group_id` and `count` of unread messages
+- Only counts messages in groups where the user is a member
+- Excludes messages sent by the user themselves
 - Only counts messages where `read_at` is `null` and `deleted_at` is `null`
-- Groups results by `reference_id`
+- Groups results by `chat_group_id`
 - Sorts by count (descending - most unread first)
 
 **Response format:**
 ```json
 {
   "success": true,
-  "receiver_user_id": "user-123",
+  "user_id": "user-123",
   "unread_counts": [
-    { "reference_id": "ref-1", "count": 5 },
-    { "reference_id": "ref-2", "count": 3 },
-    { "reference_id": "", "count": 1 }
+    { "chat_group_id": "group-1", "count": 5 },
+    { "chat_group_id": "group-2", "count": 3 }
   ],
-  "total_references": 3,
-  "total_unread": 9
+  "total_groups": 2,
+  "total_unread": 8
 }
 ```
 
@@ -577,9 +761,9 @@ export async function GET(request: NextRequest) {
 - [ ] All API route files exist
 - [ ] `GET /api/hazo_auth/me` returns user data when logged in
 - [ ] `POST /api/hazo_auth/profiles` returns profiles for given IDs
-- [ ] `GET /api/hazo_chat/messages?receiver_user_id=xxx` works
+- [ ] `GET /api/hazo_chat/messages?chat_group_id=xxx` works (v3.0)
 - [ ] `PATCH /api/hazo_chat/messages/[message-id]/read` marks message as read
-- [ ] `GET /api/hazo_chat/unread_count?receiver_user_id=xxx` returns unread counts (if implemented)
+- [ ] `GET /api/hazo_chat/unread_count?user_id=xxx` returns unread counts (v3.0, if implemented)
 
 ---
 
@@ -598,7 +782,7 @@ export default function ChatPage() {
   return (
     <div className="h-screen">
       <HazoChat
-        receiver_user_id="recipient-uuid-here"
+        chat_group_id="group-uuid-here"
         title="Chat"
         subtitle="Direct Message"
       />
@@ -617,7 +801,7 @@ import { HazoChat } from 'hazo_chat';
 export default function ChatPage() {
   return (
     <HazoChat
-      receiver_user_id="user-123"
+      chat_group_id="group-123"
       reference_id="project-456"
       reference_type="project_chat"
       api_base_url="/api/hazo_chat"
@@ -625,11 +809,11 @@ export default function ChatPage() {
       title="Project Discussion"
       subtitle="Design Review"
       additional_references={[
-        { 
-          id: 'doc-1', 
-          type: 'document', 
+        {
+          id: 'doc-1',
+          type: 'document',
           scope: 'field',
-          name: 'Design.pdf', 
+          name: 'Design.pdf',
           url: '/files/design.pdf'
         }
       ]}
@@ -652,18 +836,18 @@ The component uses `h-full`, which requires its parent container to have a **def
 
 ```typescript
 <div className="h-[600px]">  {/* ✅ Required: parent must have height */}
-  <HazoChat receiver_user_id={...} />
+  <HazoChat chat_group_id={...} />
 </div>
 
 // OR
 
 <div className="h-screen">  {/* ✅ Full screen height */}
-  <HazoChat receiver_user_id={...} />
+  <HazoChat chat_group_id={...} />
 </div>
 
 // ❌ WRONG - will cause layout issues
 <div>  {/* No height defined */}
-  <HazoChat receiver_user_id={...} />
+  <HazoChat chat_group_id={...} />
 </div>
 ```
 
@@ -676,12 +860,12 @@ The component uses `h-full`, which requires its parent container to have a **def
 ```typescript
 // ✅ Recommended: at least 500px width
 <div className="w-[600px] h-[600px]">
-  <HazoChat receiver_user_id={...} />
+  <HazoChat chat_group_id={...} />
 </div>
 
 // ✅ Narrow container: documents will open in new tab
 <div className="w-[400px] h-[600px]">
-  <HazoChat receiver_user_id={...} />
+  <HazoChat chat_group_id={...} />
 </div>
 ```
 
@@ -696,8 +880,8 @@ export default function ChatPage() {
   return (
     <div className="w-[600px] h-[600px] flex-shrink-0">
       <div className="rounded-xl border shadow-lg p-0 h-full">
-        <HazoChat 
-          receiver_user_id="user-123"
+        <HazoChat
+          chat_group_id="group-123"
           title="Chat"
           className="h-full"
         />
@@ -1127,7 +1311,10 @@ For detailed specifications, see the [UI Design Standards](#ui-design-standards)
 **PostgreSQL:**
 - [ ] UUID extension enabled (check with: `SELECT * FROM pg_extension WHERE extname = 'uuid-ossp' OR extname = 'pgcrypto';`)
 - [ ] Enum type created (if using): `SELECT typname FROM pg_type WHERE typname = 'hazo_chat_reference_type';`
-- [ ] `hazo_chat` table exists with correct column types
+- [ ] `hazo_users` table exists
+- [ ] `hazo_chat_group` table exists (v3.0)
+- [ ] `hazo_chat_group_users` table exists (v3.0)
+- [ ] `hazo_chat` table exists with `chat_group_id` column (v3.0)
 - [ ] All indexes created (check with: `SELECT indexname FROM pg_indexes WHERE tablename = 'hazo_chat';`)
 - [ ] UUID default generation works: Test insert without providing ID
 - [ ] Timestamp defaults work: Test insert without providing timestamps
@@ -1136,8 +1323,12 @@ For detailed specifications, see the [UI Design Standards](#ui-design-standards)
 - [ ] Foreign key constraints work (if enabled)
 
 **SQLite:**
-- [ ] `hazo_chat` table exists
-- [ ] Users table exists with test users
+- [ ] `hazo_users` table exists
+- [ ] `hazo_chat_group` table exists (v3.0)
+- [ ] `hazo_chat_group_users` table exists (v3.0)
+- [ ] `hazo_chat` table exists with `chat_group_id` column (v3.0)
+- [ ] At least one user exists in database
+- [ ] At least one chat group exists with memberships
 - [ ] Can insert and query messages
 
 ### API Verification
@@ -1153,11 +1344,11 @@ curl -X POST http://localhost:3000/api/hazo_auth/profiles \
   -H "Content-Type: application/json" \
   -d '{"user_ids": ["user-id-here"]}'
 
-# Test messages endpoint
-curl "http://localhost:3000/api/hazo_chat/messages?receiver_user_id=user-id"
+# Test messages endpoint (v3.0 - uses chat_group_id)
+curl "http://localhost:3000/api/hazo_chat/messages?chat_group_id=group-id"
 
-# Test unread count endpoint (if implemented)
-curl "http://localhost:3000/api/hazo_chat/unread_count?receiver_user_id=user-id"
+# Test unread count endpoint (v3.0 - uses user_id, if implemented)
+curl "http://localhost:3000/api/hazo_chat/unread_count?user_id=user-id"
 ```
 
 ### UI Verification & Responsive Behavior
@@ -1228,10 +1419,11 @@ curl "http://localhost:3000/api/hazo_chat/unread_count?receiver_user_id=user-id"
 
 **Checklist:**
 1. Is user authenticated? Check `/api/hazo_auth/me`
-2. Is `receiver_user_id` provided?
-3. Check browser console for errors
-4. Check network tab for API responses
-5. Check server logs for API errors
+2. Is `chat_group_id` provided? (v3.0)
+3. Is user a member of the chat group?
+4. Check browser console for errors
+5. Check network tab for API responses
+6. Check server logs for API errors
 
 ### Issue: Hamburger button visible on desktop
 
@@ -1324,6 +1516,301 @@ curl "http://localhost:3000/api/hazo_chat/unread_count?receiver_user_id=user-id"
 2. Check that Tailwind config has correct content paths
 3. Ensure CSS file is imported in root layout
 4. Rebuild CSS: restart dev server or rebuild
+
+---
+
+## Migration from v2.x to v3.0
+
+This section provides instructions for upgrading from hazo_chat v2.x (1-to-1 chat with `receiver_user_id`) to v3.0 (group-based chat with `chat_group_id`).
+
+### Breaking Changes
+
+1. **Database Schema:**
+   - `hazo_chat.receiver_user_id` column replaced with `chat_group_id`
+   - New tables: `hazo_chat_group` and `hazo_chat_group_users`
+
+2. **Component Props:**
+   - `receiver_user_id` prop replaced with `chat_group_id`
+
+3. **API Endpoints:**
+   - GET/POST `/api/hazo_chat/messages` now uses `chat_group_id` query param
+   - GET `/api/hazo_chat/unread_count` now uses `user_id` param instead of `receiver_user_id`
+
+4. **Types:**
+   - `ChatMessage.receiver_profile` removed
+   - `CreateMessagePayload.receiver_user_id` replaced with `chat_group_id`
+
+### Migration Steps (PostgreSQL)
+
+```sql
+-- Step 1: Create new tables
+CREATE TABLE IF NOT EXISTS hazo_chat_group (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_user_id UUID NOT NULL REFERENCES hazo_users(id),
+  name VARCHAR(255),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS hazo_chat_group_users (
+  chat_group_id UUID NOT NULL REFERENCES hazo_chat_group(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES hazo_users(id) ON DELETE CASCADE,
+  role VARCHAR(20) NOT NULL CHECK (role IN ('client', 'staff')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (chat_group_id, user_id)
+);
+
+-- Step 2: Create groups for existing 1-to-1 conversations
+-- This example creates one group per unique receiver_user_id
+INSERT INTO hazo_chat_group (id, client_user_id, name, created_at, changed_at)
+SELECT DISTINCT
+  gen_random_uuid(),
+  receiver_user_id,
+  'Migrated Chat',
+  NOW(),
+  NOW()
+FROM hazo_chat
+WHERE receiver_user_id IS NOT NULL;
+
+-- Step 3: Add sender as staff member to each group
+INSERT INTO hazo_chat_group_users (chat_group_id, user_id, role, created_at, changed_at)
+SELECT DISTINCT
+  g.id,
+  c.sender_user_id,
+  'staff',
+  NOW(),
+  NOW()
+FROM hazo_chat c
+JOIN hazo_chat_group g ON g.client_user_id = c.receiver_user_id
+WHERE c.sender_user_id != c.receiver_user_id
+ON CONFLICT (chat_group_id, user_id) DO NOTHING;
+
+-- Step 4: Add client as client member to each group
+INSERT INTO hazo_chat_group_users (chat_group_id, user_id, role, created_at, changed_at)
+SELECT
+  id,
+  client_user_id,
+  'client',
+  NOW(),
+  NOW()
+FROM hazo_chat_group
+ON CONFLICT (chat_group_id, user_id) DO NOTHING;
+
+-- Step 5: Add chat_group_id column to hazo_chat
+ALTER TABLE hazo_chat ADD COLUMN chat_group_id UUID;
+
+-- Step 6: Populate chat_group_id from receiver_user_id
+UPDATE hazo_chat c
+SET chat_group_id = g.id
+FROM hazo_chat_group g
+WHERE g.client_user_id = c.receiver_user_id;
+
+-- Step 7: Make chat_group_id NOT NULL and add foreign key
+ALTER TABLE hazo_chat
+  ALTER COLUMN chat_group_id SET NOT NULL,
+  ADD CONSTRAINT fk_hazo_chat_group
+    FOREIGN KEY (chat_group_id)
+    REFERENCES hazo_chat_group(id);
+
+-- Step 8: Drop old column and index
+DROP INDEX IF EXISTS idx_hazo_chat_receiver;
+ALTER TABLE hazo_chat DROP COLUMN receiver_user_id;
+
+-- Step 9: Create new index
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_group ON hazo_chat(chat_group_id);
+```
+
+### Migration Steps (SQLite)
+
+```sql
+-- Step 1: Create new tables
+CREATE TABLE IF NOT EXISTS hazo_chat_group (
+  id TEXT PRIMARY KEY,
+  client_user_id TEXT NOT NULL,
+  name TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  changed_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (client_user_id) REFERENCES hazo_users(id)
+);
+
+CREATE TABLE IF NOT EXISTS hazo_chat_group_users (
+  chat_group_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('client', 'staff')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  changed_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (chat_group_id, user_id),
+  FOREIGN KEY (chat_group_id) REFERENCES hazo_chat_group(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES hazo_users(id) ON DELETE CASCADE
+);
+
+-- Step 2: Create groups for existing conversations (manually generate UUIDs)
+-- Note: SQLite doesn't have gen_random_uuid(), use your app or external tool
+
+-- Step 3: Recreate hazo_chat table with new schema (SQLite doesn't support ALTER COLUMN)
+ALTER TABLE hazo_chat RENAME TO hazo_chat_old;
+
+CREATE TABLE hazo_chat (
+  id TEXT PRIMARY KEY,
+  reference_id TEXT NOT NULL,
+  reference_type TEXT DEFAULT 'chat',
+  sender_user_id TEXT NOT NULL,
+  chat_group_id TEXT NOT NULL,
+  message_text TEXT,
+  reference_list TEXT,
+  read_at TEXT,
+  deleted_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  changed_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (sender_user_id) REFERENCES hazo_users(id),
+  FOREIGN KEY (chat_group_id) REFERENCES hazo_chat_group(id)
+);
+
+-- Step 4: Migrate data (you'll need to map receiver_user_id to chat_group_id)
+INSERT INTO hazo_chat (id, reference_id, reference_type, sender_user_id, chat_group_id,
+                       message_text, reference_list, read_at, deleted_at, created_at, changed_at)
+SELECT o.id, o.reference_id, o.reference_type, o.sender_user_id, g.id,
+       o.message_text, o.reference_list, o.read_at, o.deleted_at, o.created_at, o.changed_at
+FROM hazo_chat_old o
+JOIN hazo_chat_group g ON g.client_user_id = o.receiver_user_id;
+
+-- Step 5: Drop old table
+DROP TABLE hazo_chat_old;
+
+-- Step 6: Create indexes
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_reference_id ON hazo_chat(reference_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_sender ON hazo_chat(sender_user_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_group ON hazo_chat(chat_group_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_created ON hazo_chat(created_at DESC);
+```
+
+### Code Changes Required
+
+1. **Update HazoChat component usage:**
+   ```typescript
+   // Before (v2.x)
+   <HazoChat receiver_user_id="user-123" />
+
+   // After (v3.0)
+   <HazoChat chat_group_id="group-123" />
+   ```
+
+2. **Update API route for unread count:**
+   ```typescript
+   // Before (v2.x)
+   const unread = await hazo_chat_get_unread_count(receiver_user_id);
+
+   // After (v3.0)
+   const unread = await hazo_chat_get_unread_count({ user_id, chat_group_ids });
+   ```
+
+3. **Update any direct database queries** to use `chat_group_id` instead of `receiver_user_id`.
+
+---
+
+## Migration from v3.0 to v3.1 (Generic Schema)
+
+This section provides instructions for upgrading from hazo_chat v3.0 to v3.1 to support flexible chat patterns (support, peer, and group conversations).
+
+### What Changed in v3.1
+
+1. **`client_user_id`**: Now nullable (optional) for peer/group chats
+2. **`group_type`**: New field to identify conversation type ('support', 'peer', 'group')
+3. **Expanded roles**: 'owner', 'admin', 'member' added alongside 'client' and 'staff'
+
+### PostgreSQL Migration
+
+```sql
+-- Step 1: Create enum types (if not already created)
+CREATE TYPE hazo_enum_group_type AS ENUM ('support', 'peer', 'group');
+CREATE TYPE hazo_enum_group_role AS ENUM ('client', 'staff', 'owner', 'admin', 'member');
+
+-- Step 2: Add group_type column with default 'support' for existing groups
+ALTER TABLE hazo_chat_group
+  ADD COLUMN group_type hazo_enum_group_type DEFAULT 'support';
+
+-- Step 3: Make client_user_id nullable
+ALTER TABLE hazo_chat_group
+  ALTER COLUMN client_user_id DROP NOT NULL;
+
+-- Step 4: Update role column to use enum type (if using enum approach)
+-- Option A: Convert to enum type (recommended)
+ALTER TABLE hazo_chat_group_users
+  DROP CONSTRAINT IF EXISTS hazo_chat_group_users_role_check;
+
+ALTER TABLE hazo_chat_group_users
+  ALTER COLUMN role TYPE hazo_enum_group_role
+  USING role::hazo_enum_group_role;
+
+-- Option B: Keep VARCHAR with expanded CHECK constraint
+-- ALTER TABLE hazo_chat_group_users
+--   DROP CONSTRAINT IF EXISTS hazo_chat_group_users_role_check;
+--
+-- ALTER TABLE hazo_chat_group_users
+--   ADD CONSTRAINT hazo_chat_group_users_role_check
+--   CHECK (role IN ('client', 'staff', 'owner', 'admin', 'member'));
+
+-- Step 5: Create index for group_type
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_group_type ON hazo_chat_group(group_type);
+```
+
+### SQLite Migration
+
+SQLite doesn't support ALTER COLUMN, so table recreation is needed:
+
+```sql
+-- Step 1: Rename existing tables
+ALTER TABLE hazo_chat_group RENAME TO hazo_chat_group_old;
+ALTER TABLE hazo_chat_group_users RENAME TO hazo_chat_group_users_old;
+
+-- Step 2: Create new hazo_chat_group table with updated schema
+CREATE TABLE hazo_chat_group (
+  id TEXT PRIMARY KEY,
+  client_user_id TEXT,  -- Now nullable
+  group_type TEXT DEFAULT 'support' CHECK (group_type IN ('support', 'peer', 'group')),
+  name TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  changed_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (client_user_id) REFERENCES hazo_users(id)
+);
+
+-- Step 3: Migrate group data (existing groups become 'support' type)
+INSERT INTO hazo_chat_group (id, client_user_id, group_type, name, created_at, changed_at)
+SELECT id, client_user_id, 'support', name, created_at, changed_at
+FROM hazo_chat_group_old;
+
+-- Step 4: Drop old group table
+DROP TABLE hazo_chat_group_old;
+
+-- Step 5: Create new hazo_chat_group_users table with expanded roles
+CREATE TABLE hazo_chat_group_users (
+  chat_group_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('client', 'staff', 'owner', 'admin', 'member')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  changed_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (chat_group_id, user_id),
+  FOREIGN KEY (chat_group_id) REFERENCES hazo_chat_group(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES hazo_users(id) ON DELETE CASCADE
+);
+
+-- Step 6: Migrate membership data
+INSERT INTO hazo_chat_group_users SELECT * FROM hazo_chat_group_users_old;
+
+-- Step 7: Drop old membership table
+DROP TABLE hazo_chat_group_users_old;
+
+-- Step 8: Recreate indexes
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_group_client ON hazo_chat_group(client_user_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_group_type ON hazo_chat_group(group_type);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_group_users_user ON hazo_chat_group_users(user_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_group_users_group ON hazo_chat_group_users(chat_group_id);
+```
+
+### No Code Changes Required
+
+The TypeScript types have been updated, but the API handlers do not enforce role-based permissions. Existing code will continue to work without modification.
 
 ---
 

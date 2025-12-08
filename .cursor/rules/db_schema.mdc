@@ -1,0 +1,24 @@
+---
+alwaysApply: true
+---
+
+"public","hazo_chat","id","uuid","gen_random_uuid()",NULL,NULL,NULL,NULL,NULL
+"public","hazo_chat","reference_type","USER-DEFINED","'chat'::hazo_enum_chat_type",NULL,NULL,NULL,NULL,NULL
+"public","hazo_chat","sender_user_id","uuid",NULL,NULL,NULL,"FOREIGN KEY","hazo_users","id"
+"public","hazo_chat","receiver_user_id","uuid",NULL,NULL,NULL,"FOREIGN KEY","hazo_users","id"
+"public","hazo_chat","message_text","text",NULL,NULL,NULL,NULL,NULL,NULL
+"public","hazo_chat","reference_list","jsonb",NULL,NULL,NULL,NULL,NULL,NULL
+"public","hazo_chat","read_at","timestamp with time zone",NULL,NULL,NULL,NULL,NULL,NULL
+"public","hazo_chat","deleted_at","timestamp with time zone",NULL,NULL,NULL,NULL,NULL,NULL
+"public","hazo_chat","created_at","timestamp with time zone","now()",NULL,NULL,NULL,NULL,NULL
+"public","hazo_chat","changed_at","timestamp with time zone","now()",NULL,NULL,NULL,NULL,NULL
+"public","hazo_chat","reference_id","text",NULL,NULL,NULL,NULL,NULL,NULL
+"public","hazo_chat_group","id","uuid","gen_random_uuid()",NULL,NULL,NULL,NULL,NULL
+"public","hazo_chat_group","created_at","timestamp with time zone","now()",NULL,NULL,NULL,NULL,NULL
+"public","hazo_chat_group","changed_at","timestamp with time zone",NULL,NULL,NULL,NULL,NULL,NULL
+"public","hazo_chat_group_users","chat_group_id","uuid",NULL,NULL,NULL,NULL,NULL,NULL
+"public","hazo_chat_group_users","chat_group_id","uuid",NULL,NULL,NULL,"FOREIGN KEY","hazo_chat_group","id"
+"public","hazo_chat_group_users","user_id","uuid",NULL,NULL,NULL,NULL,NULL,NULL
+"public","hazo_chat_group_users","user_id","uuid",NULL,NULL,NULL,"FOREIGN KEY","hazo_users","id"
+"public","hazo_chat_group_users","created_at","timestamp with time zone","now()",NULL,NULL,NULL,NULL,NULL
+"public","hazo_chat_group_users","changed_at","timestamp with time zone",NULL,NULL,NULL,NULL,NULL,NULL

@@ -84,7 +84,7 @@ export interface MessagesHandlerOptions {
  * Chat message input for creating new messages
  */
 export interface ChatMessageInput {
-  receiver_user_id: string;
+  chat_group_id: string;
   message_text: string;
   reference_id?: string;
   reference_type?: string;
@@ -98,13 +98,38 @@ export interface ChatMessageRecord {
   reference_id: string;
   reference_type: string;
   sender_user_id: string;
-  receiver_user_id: string;
+  chat_group_id: string;
   message_text: string;
   reference_list: string | null;
   read_at: string | null;
   deleted_at: string | null;
   created_at: string;
   changed_at: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Chat group user membership record
+ */
+export interface ChatGroupUserRecord {
+  chat_group_id: string;
+  user_id: string;
+  role: 'client' | 'staff' | 'owner' | 'admin' | 'member';
+  created_at: string;
+  changed_at: string | null;
+  [key: string]: unknown;
+}
+
+/**
+ * Chat group database record
+ */
+export interface ChatGroupRecord {
+  id: string;
+  client_user_id: string | null;
+  group_type: 'support' | 'peer' | 'group' | null;
+  name: string | null;
+  created_at: string;
+  changed_at: string | null;
   [key: string]: unknown;
 }
 

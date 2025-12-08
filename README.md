@@ -1,11 +1,15 @@
 # hazo_chat
 
-A full-featured React chat component library for 1-1 communication with document sharing, file attachments, and real-time messaging capabilities.
+A full-featured React chat component library for group-based communication with document sharing, file attachments, and real-time messaging capabilities.
 
-**Version 2.0** - Now with API-first architecture! No server-side dependencies in client components.
+**Version 3.0** - Now with group-based chat! Multiple users can participate in a single chat group, perfect for support staff rotating on client sessions.
+
+**Version 2.0** introduced API-first architecture with no server-side dependencies in client components.
 
 ## Features
 
+- 👥 **Group-Based Chat** - Multiple users can participate in a single chat group
+- 🔄 **Role-Based Access** - Support for 'client' and 'staff' roles within groups
 - 📱 **Responsive Design** - Works on desktop and mobile with adaptive layout
 - 💬 **Real-time Messaging** - Polling or manual refresh modes for message updates with optimistic UI
 - 📎 **File Attachments** - Support for documents and images with preview
@@ -478,7 +482,7 @@ export default function ChatPage() {
   return (
     <div className="h-screen">
       <HazoChat
-        receiver_user_id="recipient-uuid"
+        chat_group_id="group-uuid"
         reference_id="conversation-123"
         reference_type="support"
         title="Chat with Support"
@@ -497,12 +501,14 @@ hazo_chat requires these API endpoints:
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/hazo_chat/messages` | GET | Fetch chat messages |
-| `/api/hazo_chat/messages` | POST | Send a new message |
+| `/api/hazo_chat/messages` | GET | Fetch chat messages (requires `chat_group_id` param) |
+| `/api/hazo_chat/messages` | POST | Send a new message (requires `chat_group_id` in body) |
 | `/api/hazo_chat/messages/[id]/read` | PATCH | Mark a message as read (automatic) |
-| `/api/hazo_chat/unread_count` | GET | Get unread message counts by reference_id (optional) |
+| `/api/hazo_chat/unread_count` | GET | Get unread message counts by chat_group_id (optional) |
 | `/api/hazo_auth/me` | GET | Get current authenticated user |
 | `/api/hazo_auth/profiles` | POST | Fetch user profiles by IDs |
+
+**Breaking Change (v3.0):** Messages API now uses `chat_group_id` instead of `receiver_user_id`. All group members can see and send messages.
 
 ### Using Exportable Handlers (Recommended)
 
@@ -563,9 +569,11 @@ hazo_chat provides server-side library functions that can be used in API routes,
 
 ### hazo_chat_get_unread_count
 
-Get unread message counts grouped by reference_id for a receiver user.
+Get unread message counts grouped by chat_group_id for a user.
 
-**Purpose:** Returns an array of reference IDs with the count of unread messages (where `read_at` is `null`) for a given receiver user ID. Useful for displaying unread message badges or notifications.
+**Purpose:** Returns an array of chat group IDs with the count of unread messages (where `read_at` is `null`) for a given user ID. Useful for displaying unread message badges or notifications.
+
+**Breaking Change (v3.0):** Now groups by `chat_group_id` instead of `reference_id`. Accepts optional `chat_group_ids` filter.
 
 **Usage:**
 
@@ -579,11 +587,13 @@ const hazo_chat_get_unread_count = createUnreadCountFunction({
 });
 
 // Use the function
-const unreadCounts = await hazo_chat_get_unread_count('receiver-user-id-123');
+const unreadCounts = await hazo_chat_get_unread_count({
+  user_id: 'user-id-123',
+  chat_group_ids: ['group-1', 'group-2'] // Optional: filter by specific groups
+});
 // Returns: [
-//   { reference_id: 'ref-1', count: 5 },
-//   { reference_id: 'ref-2', count: 3 },
-//   { reference_id: '', count: 1 }  // Empty reference_id for general messages
+//   { chat_group_id: 'group-1', count: 5 },
+//   { chat_group_id: 'group-2', count: 3 }
 // ]
 ```
 
@@ -591,14 +601,16 @@ const unreadCounts = await hazo_chat_get_unread_count('receiver-user-id-123');
 
 ```typescript
 interface UnreadCountResult {
-  reference_id: string;  // The reference ID (empty string for messages without reference)
-  count: number;         // Number of unread messages for this reference
+  chat_group_id: string; // The chat group ID
+  count: number;         // Number of unread messages in this group
 }
 ```
 
 **Function Behavior:**
 - Only counts messages where `read_at` is `null` and `deleted_at` is `null`
-- Groups results by `reference_id`
+- Only counts messages in groups where the user is a member
+- Groups results by `chat_group_id`
+- Optionally filters by specific `chat_group_ids` if provided
 - Sorts results by count (descending - most unread first)
 - Returns empty array if no unread messages found
 - Returns empty array on errors (doesn't throw)
@@ -620,33 +632,41 @@ const hazo_chat_get_unread_count = createUnreadCountFunction({
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const receiver_user_id = searchParams.get('receiver_user_id');
+    const user_id = searchParams.get('user_id');
+    const chat_group_ids_param = searchParams.get('chat_group_ids');
 
-    if (!receiver_user_id) {
+    if (!user_id) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: 'receiver_user_id is required',
+        {
+          success: false,
+          error: 'user_id is required',
           unread_counts: []
         },
         { status: 400 }
       );
     }
 
-    const unread_counts = await hazo_chat_get_unread_count(receiver_user_id);
+    const chat_group_ids = chat_group_ids_param
+      ? chat_group_ids_param.split(',')
+      : undefined;
+
+    const unread_counts = await hazo_chat_get_unread_count({
+      user_id,
+      chat_group_ids
+    });
 
     return NextResponse.json({
       success: true,
-      receiver_user_id,
+      user_id,
       unread_counts,
-      total_references: unread_counts.length,
+      total_groups: unread_counts.length,
       total_unread: unread_counts.reduce((sum, item) => sum + item.count, 0)
     });
   } catch (error) {
     const error_message = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { 
-        success: false, 
+      {
+        success: false,
         error: error_message,
         unread_counts: []
       },
@@ -714,7 +734,7 @@ export async function getUnreadCounts(receiver_user_id: string) {
 
 | Prop | Type | Required | Default | Description |
 |------|------|----------|---------|-------------|
-| `receiver_user_id` | `string` | ✅ | - | UUID of the chat recipient |
+| `chat_group_id` | `string` | ✅ | - | UUID of the chat group (CHANGED from `receiver_user_id` in v3.0) |
 | `reference_id` | `string` | ❌ | - | Reference ID for chat context grouping |
 | `reference_type` | `string` | ❌ | `'chat'` | Type of reference |
 | `api_base_url` | `string` | ❌ | `'/api/hazo_chat'` | Base URL for API endpoints |
@@ -735,7 +755,7 @@ export async function getUnreadCounts(receiver_user_id: string) {
 
 ```tsx
 <HazoChat
-  receiver_user_id="user-123"
+  chat_group_id="group-123"
   reference_id="project-456"
   reference_type="project_chat"
   api_base_url="/api/hazo_chat"
@@ -803,7 +823,7 @@ To make all chat bubbles fully round (instead of the default style with a tail):
 
 ```tsx
 <HazoChat
-  receiver_user_id="user-123"
+  chat_group_id="group-123"
   reference_id="project-456"
   show_sidebar_toggle={false}    // Hide hamburger menu
   show_delete_button={false}     // Hide delete buttons
@@ -954,7 +974,7 @@ const {
   mark_as_read,       // (message_id) => Promise<void>
   refresh,            // () => void - Reload messages
 } = useChatMessages({
-  receiver_user_id: 'user-456',
+  chat_group_id: 'group-456',  // CHANGED from receiver_user_id in v3.0
   reference_id: 'chat-123',
   reference_type: 'direct',
   api_base_url: '/api/hazo_chat',
@@ -1017,7 +1037,7 @@ interface ChatMessage {
   reference_id: string;
   reference_type: string;
   sender_user_id: string;
-  receiver_user_id: string;
+  chat_group_id: string;  // CHANGED from receiver_user_id in v3.0
   message_text: string | null;
   reference_list: ChatReferenceItem[] | null;
   read_at: string | null;
@@ -1025,7 +1045,7 @@ interface ChatMessage {
   created_at: string;
   changed_at: string;
   sender_profile?: HazoUserProfile;
-  receiver_profile?: HazoUserProfile;
+  // receiver_profile removed in v3.0
   is_sender: boolean;
   send_status?: 'sending' | 'sent' | 'failed';
 }
@@ -1061,29 +1081,70 @@ interface ChatReferenceItem {
 
 ## Database Schema
 
-### hazo_chat Table
+**Breaking Changes in v3.0:** The database schema has been updated to support group-based chat. Migration required.
+
+### hazo_chat_group Table (NEW in v3.0)
 
 ```sql
+-- PostgreSQL
+CREATE TABLE hazo_chat_group (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_user_id UUID NOT NULL REFERENCES hazo_users(id),
+  name VARCHAR(255),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_hazo_chat_group_client ON hazo_chat_group(client_user_id);
+```
+
+### hazo_chat_group_users Table (NEW in v3.0)
+
+```sql
+-- PostgreSQL
+CREATE TABLE hazo_chat_group_users (
+  chat_group_id UUID NOT NULL REFERENCES hazo_chat_group(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES hazo_users(id) ON DELETE CASCADE,
+  role VARCHAR(20) NOT NULL CHECK (role IN ('client', 'staff')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (chat_group_id, user_id)
+);
+
+CREATE INDEX idx_hazo_chat_group_users_user ON hazo_chat_group_users(user_id);
+CREATE INDEX idx_hazo_chat_group_users_group ON hazo_chat_group_users(chat_group_id);
+```
+
+### hazo_chat Table (MODIFIED in v3.0)
+
+```sql
+-- PostgreSQL
 CREATE TABLE hazo_chat (
-  id TEXT PRIMARY KEY,
-  reference_id TEXT NOT NULL,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  reference_id UUID NOT NULL,
   reference_type TEXT DEFAULT 'chat',
-  sender_user_id TEXT NOT NULL,
-  receiver_user_id TEXT NOT NULL,
+  sender_user_id UUID NOT NULL REFERENCES hazo_users(id),
+  chat_group_id UUID NOT NULL REFERENCES hazo_chat_group(id),  -- CHANGED from receiver_user_id
   message_text TEXT,
-  reference_list TEXT,  -- JSON array of ChatReferenceItem
-  read_at TEXT,
-  deleted_at TEXT,
-  created_at TEXT NOT NULL,
-  changed_at TEXT NOT NULL
+  reference_list JSONB,  -- JSON array of ChatReferenceItem
+  read_at TIMESTAMPTZ,
+  deleted_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Indexes for performance
 CREATE INDEX idx_hazo_chat_reference_id ON hazo_chat(reference_id);
 CREATE INDEX idx_hazo_chat_sender ON hazo_chat(sender_user_id);
-CREATE INDEX idx_hazo_chat_receiver ON hazo_chat(receiver_user_id);
-CREATE INDEX idx_hazo_chat_created ON hazo_chat(created_at);
+CREATE INDEX idx_hazo_chat_group ON hazo_chat(chat_group_id);  -- CHANGED from receiver index
+CREATE INDEX idx_hazo_chat_created ON hazo_chat(created_at DESC);
 ```
+
+**Migration Notes:**
+- Rename column: `receiver_user_id` → `chat_group_id`
+- Create new tables: `hazo_chat_group`, `hazo_chat_group_users`
+- Migrate existing 1-1 chats to groups with both users as members
+- Update foreign key constraints
 
 ## UI Behavior & Responsive Design
 
@@ -1148,56 +1209,110 @@ max_file_size_mb = 10
 allowed_types = pdf,png,jpg,jpeg,gif,txt,doc,docx
 ```
 
-## Migration from v1.x
+## Migration from v2.x to v3.0
 
-Version 2.0 introduces breaking changes for a simpler, more reliable architecture.
+**Version 3.0** introduces breaking changes to support group-based chat architecture.
 
 ### What Changed
 
-| v1.x | v2.x |
+| v2.x | v3.0 |
 |------|------|
-| Pass `hazo_connect` prop | Not needed - uses API calls |
-| Pass `hazo_auth` prop | Not needed - uses API calls |
-| Pass `document_save_location` prop | Not needed |
-| Direct database access | API-based data access |
+| `receiver_user_id` prop | `chat_group_id` prop |
+| 1-1 chat only | Group-based chat with multiple participants |
+| `receiver_user_id` in API calls | `chat_group_id` in API calls |
+| Single `hazo_chat` table | Three tables: `hazo_chat_group`, `hazo_chat_group_users`, `hazo_chat` (modified) |
+| Unread count by `reference_id` | Unread count by `chat_group_id` |
+| `ChatMessage.receiver_profile` field | Field removed |
 
 ### Migration Steps
 
-1. **Remove adapter props:**
+1. **Database Migration:**
+
+```sql
+-- Step 1: Create new tables
+CREATE TABLE hazo_chat_group (...);  -- See Database Schema section
+CREATE TABLE hazo_chat_group_users (...);
+
+-- Step 2: Migrate existing data (example)
+-- For each unique sender-receiver pair, create a chat group
+INSERT INTO hazo_chat_group (id, client_user_id, name)
+SELECT
+  gen_random_uuid(),
+  receiver_user_id,
+  'Migrated Chat ' || sender_user_id
+FROM hazo_chat
+GROUP BY sender_user_id, receiver_user_id;
+
+-- Step 3: Rename column
+ALTER TABLE hazo_chat RENAME COLUMN receiver_user_id TO chat_group_id;
+
+-- Step 4: Update foreign keys
+ALTER TABLE hazo_chat
+  ADD CONSTRAINT fk_chat_group
+  FOREIGN KEY (chat_group_id)
+  REFERENCES hazo_chat_group(id);
+```
+
+2. **Update Component Props:**
 
 ```tsx
-// Before (v1.x)
+// Before (v2.x)
 <HazoChat
-  hazo_connect={adapter}
-  hazo_auth={authService}
-  document_save_location="/uploads"
-  receiver_user_id="..."
+  receiver_user_id="user-123"
+  reference_id="chat-456"
 />
 
-// After (v2.x)
+// After (v3.0)
 <HazoChat
-  receiver_user_id="..."
+  chat_group_id="group-123"
+  reference_id="chat-456"
 />
 ```
 
-2. **Create API routes** (see [API Routes Setup](#api-routes-setup))
-
-3. **Update imports:**
+3. **Update API Calls:**
 
 ```typescript
-// The API handler factory is new
-import { createMessagesHandler } from 'hazo_chat/api';
+// Before (v2.x)
+const response = await fetch(
+  `/api/hazo_chat/messages?receiver_user_id=${userId}`
+);
+
+// After (v3.0)
+const response = await fetch(
+  `/api/hazo_chat/messages?chat_group_id=${groupId}`
+);
+```
+
+4. **Update Type References:**
+
+```typescript
+// Remove receiver_profile usage
+// message.receiver_profile → removed
+
+// Update CreateMessagePayload
+// receiver_user_id → chat_group_id
 ```
 
 ### Why the Change?
 
-The v1.x architecture required passing server-side adapters (`hazo_connect`, `hazo_auth`) to client components. This caused issues:
+The v2.x architecture supported only 1-1 communication. This was limiting for scenarios where:
 
-- "Module not found: Can't resolve 'fs'" errors
-- Hydration mismatches
-- Complex webpack configuration
+- Multiple support staff need to rotate on a single client chat
+- Team collaboration is required within a chat context
+- Client needs to see all staff responses in one unified thread
 
-The v2.x API-first architecture solves these by keeping all server code in API routes.
+The v3.0 group-based architecture solves these by:
+
+- Supporting multiple users in a single chat group
+- Role-based access (client vs staff)
+- Unified message history for all group members
+- Better scalability for team-based support scenarios
+
+## Migration from v1.x to v2.0
+
+Version 2.0 introduced API-first architecture (no server-side dependencies in client components).
+
+See [v2.0 release notes](https://github.com/pub12/hazo_chat/releases/tag/v2.0.0) for details.
 
 ## Development
 
