@@ -2,14 +2,17 @@
 
 A full-featured React chat component library for group-based communication with document sharing, file attachments, and real-time messaging capabilities.
 
-**Version 3.0** - Now with group-based chat! Multiple users can participate in a single chat group, perfect for support staff rotating on client sessions.
+**Version 3.1** - Generic schema supporting multiple chat patterns: support (client-to-staff), peer (1:1), and group conversations.
+
+**Version 3.0** - Introduced group-based chat architecture. Multiple users can participate in a single chat group, perfect for support staff rotating on client sessions.
 
 **Version 2.0** introduced API-first architecture with no server-side dependencies in client components.
 
 ## Features
 
 - 👥 **Group-Based Chat** - Multiple users can participate in a single chat group
-- 🔄 **Role-Based Access** - Support for 'client' and 'staff' roles within groups
+- 🏗️ **Multiple Chat Patterns** - Support for support (client-to-staff), peer (1:1), and group conversations
+- 🔄 **Role-Based Access** - Support for 'client', 'staff', 'owner', 'admin', and 'member' roles within groups
 - 📱 **Responsive Design** - Works on desktop and mobile with adaptive layout
 - 💬 **Real-time Messaging** - Polling or manual refresh modes for message updates with optimistic UI
 - 📎 **File Attachments** - Support for documents and images with preview
@@ -1079,33 +1082,160 @@ interface ChatReferenceItem {
 
 **Note on MIME Type:** The `mime_type` property is optional. If not provided, the component will automatically infer the MIME type from the file extension (e.g., `.jpg` → `image/jpeg`, `.pdf` → `application/pdf`). This ensures document preview works even when `mime_type` is not explicitly set. Supported file extensions for inference include: `pdf`, `png`, `jpg`, `jpeg`, `gif`, `webp`, `txt`, `doc`, `docx`.
 
+### ChatGroup (NEW in v3.0, UPDATED in v3.1)
+
+```typescript
+interface ChatGroup {
+  id: string;
+  client_user_id: string | null | undefined;  // NULLABLE in v3.1 (only required for 'support' groups)
+  group_type: ChatGroupType;                   // NEW in v3.1
+  name?: string | null;
+  created_at: string;
+  changed_at: string;
+}
+```
+
+### ChatGroupType (NEW in v3.1)
+
+```typescript
+type ChatGroupType = 'support' | 'peer' | 'group';
+```
+
+**Group Type Definitions:**
+- `'support'`: Client-to-staff support conversation (requires `client_user_id`)
+- `'peer'`: Peer-to-peer direct message between two users
+- `'group'`: Multi-user group conversation
+
+### ChatGroupUser (NEW in v3.0, UPDATED in v3.1)
+
+```typescript
+interface ChatGroupUser {
+  chat_group_id: string;
+  user_id: string;
+  role: ChatGroupUserRole;  // EXPANDED in v3.1
+  created_at: string;
+  changed_at: string;
+}
+```
+
+### ChatGroupUserRole (NEW in v3.0, EXPANDED in v3.1)
+
+```typescript
+// v3.0
+type ChatGroupUserRole = 'client' | 'staff';
+
+// v3.1 (expanded)
+type ChatGroupUserRole = 'client' | 'staff' | 'owner' | 'admin' | 'member';
+```
+
+**Role Definitions:**
+- `'client'`: Customer/end-user in support scenarios
+- `'staff'`: Support personnel in support scenarios
+- `'owner'`: Creator/owner of peer or group chats
+- `'admin'`: Delegated administrator in group chats
+- `'member'`: Standard participant in peer or group chats
+
+### ChatGroupWithMembers (NEW in v3.0, UPDATED in v3.1)
+
+```typescript
+interface ChatGroupWithMembers extends ChatGroup {
+  members: (ChatGroupUser & { profile?: HazoUserProfile })[];
+  owner_profile?: HazoUserProfile;  // NEW in v3.1 - profile of the group owner
+}
+```
+
 ## Database Schema
 
 **Breaking Changes in v3.0:** The database schema has been updated to support group-based chat. Migration required.
 
-### hazo_chat_group Table (NEW in v3.0)
+**New in v3.1:** Generic schema supporting multiple chat patterns - support, peer, and group conversations.
+
+### PostgreSQL Enum Types (RECOMMENDED)
+
+For PostgreSQL installations, create these custom enum types for type safety and consistency:
 
 ```sql
--- PostgreSQL
+-- Reference type for chat contexts
+CREATE TYPE hazo_enum_chat_type AS ENUM ('chat', 'field', 'project', 'support', 'general');
+
+-- Group type for conversation patterns (v3.1)
+CREATE TYPE hazo_enum_group_type AS ENUM ('support', 'peer', 'group');
+
+-- Membership roles (v3.1)
+CREATE TYPE hazo_enum_group_role AS ENUM ('client', 'staff', 'owner', 'admin', 'member');
+```
+
+### Group Types
+
+hazo_chat supports three distinct group types to accommodate different conversation patterns:
+
+| Type | Description | Use Case | `client_user_id` | Typical Roles |
+|------|-------------|----------|------------------|---------------|
+| **support** | Client-to-staff support conversation | Customer support, helpdesk | Required (identifies the client) | 'client', 'staff' |
+| **peer** | Peer-to-peer direct message (1:1) | Direct messaging between equals | Not used (null) | 'owner', 'member' |
+| **group** | Multi-user group conversation | Team collaboration, channels | Not used (null) | 'owner', 'admin', 'member' |
+
+### Role Types
+
+The `role` field in `hazo_chat_group_users` defines each member's permissions and relationship to the group:
+
+| Role | Description | Used In | Capabilities |
+|------|-------------|---------|--------------|
+| **client** | Customer/end-user receiving support | support groups | Send messages, view messages |
+| **staff** | Support personnel helping clients | support groups | Send messages, view messages, assist client |
+| **owner** | Creator/owner of the conversation | peer, group | Full control, can add/remove members |
+| **admin** | Delegated administrator | group | Can manage members, moderate content |
+| **member** | Standard participant | peer, group | Send messages, view messages |
+
+### hazo_chat_group Table (UPDATED in v3.1)
+
+```sql
+-- PostgreSQL with enums (RECOMMENDED)
 CREATE TABLE hazo_chat_group (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  client_user_id UUID NOT NULL REFERENCES hazo_users(id),
+  client_user_id UUID REFERENCES hazo_users(id),  -- NULLABLE in v3.1
+  group_type hazo_enum_group_type NOT NULL DEFAULT 'support',  -- NEW in v3.1
+  name VARCHAR(255),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- PostgreSQL without enums (alternative)
+CREATE TABLE hazo_chat_group (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_user_id UUID REFERENCES hazo_users(id),  -- NULLABLE in v3.1
+  group_type VARCHAR(20) NOT NULL DEFAULT 'support' CHECK (group_type IN ('support', 'peer', 'group')),  -- NEW in v3.1
   name VARCHAR(255),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_hazo_chat_group_client ON hazo_chat_group(client_user_id);
+CREATE INDEX idx_hazo_chat_group_type ON hazo_chat_group(group_type);  -- NEW in v3.1
 ```
 
-### hazo_chat_group_users Table (NEW in v3.0)
+**Column Changes in v3.1:**
+- `client_user_id`: Changed from `NOT NULL` to nullable - only required for 'support' type groups
+- `group_type`: NEW field - defines the conversation pattern ('support', 'peer', 'group')
+
+### hazo_chat_group_users Table (UPDATED in v3.1)
 
 ```sql
--- PostgreSQL
+-- PostgreSQL with enums (RECOMMENDED)
 CREATE TABLE hazo_chat_group_users (
   chat_group_id UUID NOT NULL REFERENCES hazo_chat_group(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES hazo_users(id) ON DELETE CASCADE,
-  role VARCHAR(20) NOT NULL CHECK (role IN ('client', 'staff')),
+  role hazo_enum_group_role NOT NULL,  -- EXPANDED in v3.1
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (chat_group_id, user_id)
+);
+
+-- PostgreSQL without enums (alternative)
+CREATE TABLE hazo_chat_group_users (
+  chat_group_id UUID NOT NULL REFERENCES hazo_chat_group(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES hazo_users(id) ON DELETE CASCADE,
+  role VARCHAR(20) NOT NULL CHECK (role IN ('client', 'staff', 'owner', 'admin', 'member')),  -- EXPANDED in v3.1
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (chat_group_id, user_id)
@@ -1113,7 +1243,11 @@ CREATE TABLE hazo_chat_group_users (
 
 CREATE INDEX idx_hazo_chat_group_users_user ON hazo_chat_group_users(user_id);
 CREATE INDEX idx_hazo_chat_group_users_group ON hazo_chat_group_users(chat_group_id);
+CREATE INDEX idx_hazo_chat_group_users_role ON hazo_chat_group_users(role);  -- NEW in v3.1
 ```
+
+**Column Changes in v3.1:**
+- `role`: EXPANDED from ('client', 'staff') to ('client', 'staff', 'owner', 'admin', 'member')
 
 ### hazo_chat Table (MODIFIED in v3.0)
 
@@ -1207,6 +1341,157 @@ max_file_size_mb = 10
 
 # Allowed file extensions (comma-separated)
 allowed_types = pdf,png,jpg,jpeg,gif,txt,doc,docx
+```
+
+## Migration from v3.0 to v3.1
+
+**Version 3.1** introduces schema changes to support multiple chat patterns (support, peer, group) while maintaining backward compatibility.
+
+### What Changed in v3.1
+
+| v3.0 | v3.1 |
+|------|------|
+| Fixed support pattern only | Three patterns: support, peer, group |
+| `client_user_id` always required | `client_user_id` nullable (only for support groups) |
+| 2 roles: 'client', 'staff' | 5 roles: 'client', 'staff', 'owner', 'admin', 'member' |
+| No `group_type` field | NEW `group_type` field ('support', 'peer', 'group') |
+
+### Migration Steps (v3.0 to v3.1)
+
+**Important:** v3.1 is backward compatible with v3.0 schema. Existing support-type groups continue to work without changes.
+
+1. **Create PostgreSQL Enum Types (Optional but Recommended):**
+
+```sql
+-- Reference type for chat contexts
+CREATE TYPE hazo_enum_chat_type AS ENUM ('chat', 'field', 'project', 'support', 'general');
+
+-- Group type for conversation patterns
+CREATE TYPE hazo_enum_group_type AS ENUM ('support', 'peer', 'group');
+
+-- Membership roles
+CREATE TYPE hazo_enum_group_role AS ENUM ('client', 'staff', 'owner', 'admin', 'member');
+```
+
+2. **Add group_type Column to hazo_chat_group:**
+
+```sql
+-- Add group_type column (defaults to 'support' for backward compatibility)
+ALTER TABLE hazo_chat_group
+  ADD COLUMN group_type VARCHAR(20) NOT NULL DEFAULT 'support'
+  CHECK (group_type IN ('support', 'peer', 'group'));
+
+-- Or with enum type (if you created the enum):
+ALTER TABLE hazo_chat_group
+  ADD COLUMN group_type hazo_enum_group_type NOT NULL DEFAULT 'support';
+
+-- Add index for group_type
+CREATE INDEX idx_hazo_chat_group_type ON hazo_chat_group(group_type);
+```
+
+3. **Make client_user_id Nullable:**
+
+```sql
+-- Remove NOT NULL constraint from client_user_id
+ALTER TABLE hazo_chat_group
+  ALTER COLUMN client_user_id DROP NOT NULL;
+```
+
+4. **Update Role Constraint in hazo_chat_group_users:**
+
+```sql
+-- Drop old constraint
+ALTER TABLE hazo_chat_group_users
+  DROP CONSTRAINT IF EXISTS hazo_chat_group_users_role_check;
+
+-- Add new constraint with expanded roles
+ALTER TABLE hazo_chat_group_users
+  ADD CONSTRAINT hazo_chat_group_users_role_check
+  CHECK (role IN ('client', 'staff', 'owner', 'admin', 'member'));
+
+-- Or with enum type (if you created the enum):
+ALTER TABLE hazo_chat_group_users
+  ALTER COLUMN role TYPE hazo_enum_group_role
+  USING role::hazo_enum_group_role;
+
+-- Add index for role
+CREATE INDEX idx_hazo_chat_group_users_role ON hazo_chat_group_users(role);
+```
+
+5. **Verify Existing Data:**
+
+```sql
+-- All existing groups should have group_type = 'support'
+SELECT group_type, COUNT(*)
+FROM hazo_chat_group
+GROUP BY group_type;
+
+-- All existing members should have role IN ('client', 'staff')
+SELECT role, COUNT(*)
+FROM hazo_chat_group_users
+GROUP BY role;
+```
+
+### Creating New Group Types
+
+After migration, you can create peer and group conversations:
+
+```typescript
+// Support group (v3.0 style - still works)
+await db.insert_with_result('hazo_chat_group', {
+  client_user_id: 'client-uuid',
+  group_type: 'support',
+  name: 'Customer Support'
+});
+
+// Peer-to-peer chat (v3.1)
+await db.insert_with_result('hazo_chat_group', {
+  client_user_id: null,  // Not used for peer chats
+  group_type: 'peer',
+  name: 'Alice & Bob'
+});
+
+// Group conversation (v3.1)
+await db.insert_with_result('hazo_chat_group', {
+  client_user_id: null,  // Not used for group chats
+  group_type: 'group',
+  name: 'Project Team'
+});
+```
+
+### No Code Changes Required
+
+The v3.1 schema changes are transparent to the component API. Your existing code continues to work:
+
+```tsx
+// This works for all group types (support, peer, group)
+<HazoChat
+  chat_group_id="group-123"
+  reference_id="chat-456"
+  reference_type="support"
+/>
+```
+
+### TypeScript Type Updates
+
+If you use TypeScript types from hazo_chat:
+
+```typescript
+// v3.1 types (automatically available after updating package)
+import type {
+  ChatGroup,           // client_user_id is now optional
+  ChatGroupType,       // 'support' | 'peer' | 'group'
+  ChatGroupUserRole    // 'client' | 'staff' | 'owner' | 'admin' | 'member'
+} from 'hazo_chat';
+
+const group: ChatGroup = {
+  id: 'group-123',
+  client_user_id: null,        // ✅ Now optional
+  group_type: 'peer',          // ✅ New field
+  name: 'Chat',
+  created_at: new Date().toISOString(),
+  changed_at: new Date().toISOString()
+};
 ```
 
 ## Migration from v2.x to v3.0
