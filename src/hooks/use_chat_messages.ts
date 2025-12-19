@@ -24,6 +24,7 @@ import type {
   UseChatMessagesReturn,
   PollingStatus,
   RealtimeMode,
+  ClientLogger,
 } from '../types/index.js';
 import {
   DEFAULT_REALTIME_MODE,
@@ -53,6 +54,11 @@ const MAX_POLLING_DELAY = 30000;
 export interface UseChatMessagesParams {
   /** UUID of the chat group (required) */
   chat_group_id: string;
+  /**
+   * Logger instance from hazo_logs/ui (required).
+   * Create using: createClientLogger({ packageName: 'hazo_chat' })
+   */
+  logger: ClientLogger;
   /** Reference ID for chat context grouping */
   reference_id?: string;
   /** Reference type (default: 'chat') */
@@ -119,6 +125,7 @@ function generateOptimisticId(): string {
 
 export function useChatMessages({
   chat_group_id,
+  logger,
   reference_id = '',
   reference_type = 'chat',
   api_base_url = '/api/hazo_chat',
@@ -256,7 +263,7 @@ export function useChatMessages({
             }
           }
         } catch (err) {
-          console.error('[useChatMessages] Failed to fetch user profiles:', err);
+          logger.error('[useChatMessages] Failed to fetch user profiles:', { error: err });
         }
       }
 
@@ -358,7 +365,7 @@ export function useChatMessages({
           throw new Error(data.error || 'Failed to fetch messages');
         }
       } catch (err) {
-        console.error('[useChatMessages] Fetch error:', err);
+        logger.error('[useChatMessages] Fetch error:', { error: err });
         throw err;
       }
     },
@@ -449,7 +456,7 @@ export function useChatMessages({
         }
       }
     } catch (err) {
-      console.error('[useChatMessages] Load more error:', err);
+      logger.error('[useChatMessages] Load more error:', { error: err });
     } finally {
       if (is_mounted_ref.current) {
         set_is_loading_more(false);
@@ -506,7 +513,7 @@ export function useChatMessages({
           set_polling_status('connected');
         }
       } catch (err) {
-        console.error('[useChatMessages] Polling error:', err);
+        logger.error('[useChatMessages] Polling error:', { error: err });
         retry_count_ref.current += 1;
 
         if (is_mounted_ref.current) {
@@ -647,7 +654,7 @@ export function useChatMessages({
           throw new Error(data.error || 'Failed to send message');
         }
       } catch (err) {
-        console.error('[useChatMessages] Send error:', err);
+        logger.error('[useChatMessages] Send error:', { error: err });
 
         // Mark optimistic message as failed
         if (is_mounted_ref.current) {
@@ -705,7 +712,7 @@ export function useChatMessages({
 
         return true;
       } catch (err) {
-        console.error('[useChatMessages] Delete error:', err);
+        logger.error('[useChatMessages] Delete error:', { error: err });
 
         // Rollback on error
         if (is_mounted_ref.current) {
@@ -745,7 +752,7 @@ export function useChatMessages({
         });
 
         if (!response.ok) {
-          console.error('[useChatMessages] Mark as read failed:', response.status);
+          logger.error('[useChatMessages] Mark as read failed:', { status: response.status });
           return;
         }
 
@@ -760,10 +767,10 @@ export function useChatMessages({
           );
         }
       } catch (err) {
-        console.error('[useChatMessages] Mark as read error:', err);
+        logger.error('[useChatMessages] Mark as read error:', { error: err });
       }
     },
-    [current_user_id, messages, config.api_base_url]
+    [current_user_id, messages, config.api_base_url, logger]
   );
 
   // -------------------------------------------------------------------------

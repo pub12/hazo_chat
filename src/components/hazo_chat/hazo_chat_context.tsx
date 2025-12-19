@@ -23,6 +23,7 @@ import React, {
   useMemo,
   type ReactNode
 } from 'react';
+import type { ClientLogger } from 'hazo_logs/ui';
 import type {
   HazoChatContextValue,
   HazoChatContextState,
@@ -159,6 +160,8 @@ const HazoChatContext = createContext<HazoChatContextValue | null>(null);
 
 interface HazoChatProviderProps {
   children: ReactNode;
+  /** Logger instance for client-side logging */
+  logger: ClientLogger;
   /** Base URL for API endpoints (default: '/api/hazo_chat') */
   api_base_url?: string;
   /** Initial references from props */
@@ -171,15 +174,17 @@ interface HazoChatProviderProps {
 
 /**
  * HazoChatProvider - Context provider for HazoChat component tree
- * 
+ *
  * Fetches current user via API on mount.
- * 
+ *
  * @param children - Child components
+ * @param logger - Logger instance for client-side logging
  * @param api_base_url - Base URL for API endpoints
  * @param initial_references - Initial references from props
  */
 export function HazoChatProvider({
   children,
+  logger,
   api_base_url = '/api/hazo_chat',
   initial_references = []
 }: HazoChatProviderProps) {
@@ -226,7 +231,7 @@ export function HazoChatProvider({
           }
         }
       } catch (error) {
-        console.error('[HazoChatContext] Failed to load current user:', error);
+        logger.error('[HazoChatContext] Failed to load current user:', { error });
         dispatch({
           type: 'SET_ERROR_MESSAGE',
           payload: 'Failed to authenticate user'
@@ -235,7 +240,7 @@ export function HazoChatProvider({
     }
 
     load_current_user();
-  }, [api_base_url]);
+  }, [api_base_url, logger]);
 
   // -------------------------------------------------------------------------
   // Action creators
@@ -334,6 +339,8 @@ export function HazoChatProvider({
       polling_status: state.polling_status,
       all_references: state.all_references,
       error_message: state.error_message,
+      // Logger
+      logger,
       // Actions
       set_selected_reference,
       set_highlighted_message_id,
@@ -348,6 +355,7 @@ export function HazoChatProvider({
     }),
     [
       state,
+      logger,
       set_selected_reference,
       set_highlighted_message_id,
       add_pending_attachment,

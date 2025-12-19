@@ -24,6 +24,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createCrudService, getSqliteAdminService } from 'hazo_connect/server';
 import type { HazoConnectAdapter } from 'hazo_connect';
+import type { Logger } from 'hazo_logs';
 import type { MessagesHandlerOptions, ChatMessageInput, ChatMessageRecord, ChatGroupUserRecord, ApiErrorResponse, ApiSuccessResponse } from './types.js';
 
 // ============================================================================
@@ -97,7 +98,8 @@ async function defaultGetUserIdFromRequest(): Promise<string | null> {
 async function verifyGroupMembership(
   hazoConnect: HazoConnectAdapter,
   user_id: string,
-  chat_group_id: string
+  chat_group_id: string,
+  logger: Logger
 ): Promise<ChatGroupUserRecord | null> {
   const membershipService = createCrudService<ChatGroupUserRecord>(hazoConnect, 'hazo_chat_group_users');
 
@@ -109,7 +111,7 @@ async function verifyGroupMembership(
     );
     return memberships[0] || null;
   } catch (error) {
-    console.error('[hazo_chat] Error verifying group membership:', error);
+    logger.error('[hazo_chat] Error verifying group membership:', { error });
     return null;
   }
 }
@@ -121,7 +123,8 @@ async function verifyGroupMembership(
  * @returns Object with GET and POST handlers
  */
 export function createMessagesHandler(options: MessagesHandlerOptions) {
-  const { getHazoConnect, getUserIdFromRequest } = options;
+  const { getHazoConnect, getLogger, getUserIdFromRequest } = options;
+  const logger = getLogger();
 
   /**
    * GET handler - Fetch chat messages with pagination
@@ -142,7 +145,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
         : await defaultGetUserIdFromRequest();
 
       if (!current_user_id) {
-        console.error('[hazo_chat/messages GET] No user ID - not authenticated');
+        logger.error('[hazo_chat/messages GET] No user ID - not authenticated');
         return createErrorResponse('User not authenticated', 401, 'UNAUTHENTICATED');
       }
 
@@ -157,7 +160,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
 
       // Validate required params
       if (!chat_group_id) {
-        console.error('[hazo_chat/messages GET] Missing chat_group_id');
+        logger.error('[hazo_chat/messages GET] Missing chat_group_id');
         return createErrorResponse('chat_group_id is required', 400, 'MISSING_CHAT_GROUP');
       }
 
@@ -165,9 +168,9 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
       const hazoConnect = getHazoConnect() as HazoConnectAdapter;
 
       // Verify user is a member of the chat group
-      const membership = await verifyGroupMembership(hazoConnect, current_user_id, chat_group_id);
+      const membership = await verifyGroupMembership(hazoConnect, current_user_id, chat_group_id, logger);
       if (!membership) {
-        console.error('[hazo_chat/messages GET] User is not a member of chat group:', {
+        logger.error('[hazo_chat/messages GET] User is not a member of chat group:', {
           current_user_id,
           chat_group_id,
         });
@@ -201,7 +204,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
         limit = Math.min(parsed_limit, MAX_LIMIT);
       }
 
-      console.log('[hazo_chat/messages GET] Fetching messages:', {
+      logger.info('[hazo_chat/messages GET] Fetching messages:', {
         current_user_id,
         chat_group_id,
         reference_id,
@@ -264,11 +267,11 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
           messages.reverse();
         }
       } catch (dbError) {
-        console.error('[hazo_chat/messages GET] Database error:', dbError);
+        logger.error('[hazo_chat/messages GET] Database error:', { dbError });
         throw dbError;
       }
 
-      console.log('[hazo_chat/messages GET] Found messages:', messages.length);
+      logger.info('[hazo_chat/messages GET] Found messages:', { count: messages.length });
 
       // Determine if there are more messages
       const has_more = messages.length === limit;
@@ -290,7 +293,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
       });
     } catch (error) {
       const error_message = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[hazo_chat/messages GET] Error:', error_message, error);
+      logger.error('[hazo_chat/messages GET] Error:', { error_message, error });
 
       return createErrorResponse('Failed to fetch messages', 500, 'INTERNAL_ERROR');
     }
@@ -313,7 +316,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
         : await defaultGetUserIdFromRequest();
 
       if (!sender_user_id) {
-        console.error('[hazo_chat/messages POST] No user ID - not authenticated');
+        logger.error('[hazo_chat/messages POST] No user ID - not authenticated');
         return createErrorResponse('User not authenticated', 401, 'UNAUTHENTICATED');
       }
 
@@ -323,7 +326,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
 
       // Validate required fields
       if (!chat_group_id) {
-        console.error('[hazo_chat/messages POST] Missing chat_group_id');
+        logger.error('[hazo_chat/messages POST] Missing chat_group_id');
         return createErrorResponse('chat_group_id is required', 400, 'MISSING_CHAT_GROUP');
       }
 
@@ -331,9 +334,9 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
       const hazoConnect = getHazoConnect() as HazoConnectAdapter;
 
       // Verify user is a member of the chat group
-      const membership = await verifyGroupMembership(hazoConnect, sender_user_id, chat_group_id);
+      const membership = await verifyGroupMembership(hazoConnect, sender_user_id, chat_group_id, logger);
       if (!membership) {
-        console.error('[hazo_chat/messages POST] User is not a member of chat group:', {
+        logger.error('[hazo_chat/messages POST] User is not a member of chat group:', {
           sender_user_id,
           chat_group_id,
         });
@@ -342,14 +345,14 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
 
       // Validate message_text
       if (!message_text || typeof message_text !== 'string') {
-        console.error('[hazo_chat/messages POST] Missing message_text');
+        logger.error('[hazo_chat/messages POST] Missing message_text');
         return createErrorResponse('message_text is required', 400, 'MISSING_MESSAGE');
       }
 
       const trimmed_message = message_text.trim();
 
       if (trimmed_message === '') {
-        console.error('[hazo_chat/messages POST] Empty message_text');
+        logger.error('[hazo_chat/messages POST] Empty message_text');
         return createErrorResponse(
           'message_text cannot be empty or whitespace-only',
           400,
@@ -358,7 +361,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
       }
 
       if (trimmed_message.length > MAX_MESSAGE_LENGTH) {
-        console.error('[hazo_chat/messages POST] Message too long:', trimmed_message.length);
+        logger.error('[hazo_chat/messages POST] Message too long:', { length: trimmed_message.length });
         return createErrorResponse(
           `Message exceeds maximum length of ${MAX_MESSAGE_LENGTH} characters`,
           400,
@@ -406,7 +409,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
         changed_at: now,
       };
 
-      console.log('[hazo_chat/messages POST] Saving message:', {
+      logger.info('[hazo_chat/messages POST] Saving message:', {
         id: message_id,
         sender_user_id,
         chat_group_id,
@@ -419,11 +422,11 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
       try {
         await chatService.insert(message_record);
       } catch (dbError) {
-        console.error('[hazo_chat/messages POST] Database error:', dbError);
+        logger.error('[hazo_chat/messages POST] Database error:', { dbError });
         throw dbError;
       }
 
-      console.log('[hazo_chat/messages POST] Message saved successfully:', message_id);
+      logger.info('[hazo_chat/messages POST] Message saved successfully:', { message_id });
 
       return NextResponse.json({
         success: true,
@@ -443,7 +446,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
       });
     } catch (error) {
       const error_message = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[hazo_chat/messages POST] Error:', error_message, error);
+      logger.error('[hazo_chat/messages POST] Error:', { error_message, error });
 
       return createErrorResponse('Failed to save message', 500, 'INTERNAL_ERROR');
     }
@@ -462,7 +465,8 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
  * @returns PATCH handler function
  */
 export function createMarkAsReadHandler(options: MessagesHandlerOptions) {
-  const { getHazoConnect, getUserIdFromRequest } = options;
+  const { getHazoConnect, getLogger, getUserIdFromRequest } = options;
+  const logger = getLogger();
 
   /**
    * PATCH handler - Mark a message as read
@@ -483,7 +487,7 @@ export function createMarkAsReadHandler(options: MessagesHandlerOptions) {
         : await defaultGetUserIdFromRequest();
 
       if (!current_user_id) {
-        console.error('[hazo_chat/messages/[id]/read PATCH] No user ID - not authenticated');
+        logger.error('[hazo_chat/messages/[id]/read PATCH] No user ID - not authenticated');
         return NextResponse.json(
           { success: false, error: 'User not authenticated' },
           { status: 401 }
@@ -495,14 +499,14 @@ export function createMarkAsReadHandler(options: MessagesHandlerOptions) {
       const message_id = params.id;
 
       if (!message_id) {
-        console.error('[hazo_chat/messages/[id]/read PATCH] Missing message ID');
+        logger.error('[hazo_chat/messages/[id]/read PATCH] Missing message ID');
         return NextResponse.json(
           { success: false, error: 'Message ID is required' },
           { status: 400 }
         );
       }
 
-      console.log('[hazo_chat/messages/[id]/read PATCH] Marking message as read:', {
+      logger.info('[hazo_chat/messages/[id]/read PATCH] Marking message as read:', {
         message_id,
         current_user_id,
       });
@@ -519,12 +523,12 @@ export function createMarkAsReadHandler(options: MessagesHandlerOptions) {
         );
         message = messages[0] || null;
       } catch (dbError) {
-        console.error('[hazo_chat/messages/[id]/read PATCH] Database error fetching message:', dbError);
+        logger.error('[hazo_chat/messages/[id]/read PATCH] Database error fetching message:', { dbError });
         throw dbError;
       }
 
       if (!message) {
-        console.error('[hazo_chat/messages/[id]/read PATCH] Message not found:', message_id);
+        logger.error('[hazo_chat/messages/[id]/read PATCH] Message not found:', { message_id });
         return NextResponse.json(
           { success: false, error: 'Message not found' },
           { status: 404 }
@@ -532,9 +536,9 @@ export function createMarkAsReadHandler(options: MessagesHandlerOptions) {
       }
 
       // Verify that the current user is a member of the chat group
-      const membership = await verifyGroupMembership(hazoConnect, current_user_id, message.chat_group_id);
+      const membership = await verifyGroupMembership(hazoConnect, current_user_id, message.chat_group_id, logger);
       if (!membership) {
-        console.error('[hazo_chat/messages/[id]/read PATCH] User is not a member of chat group:', {
+        logger.error('[hazo_chat/messages/[id]/read PATCH] User is not a member of chat group:', {
           message_id,
           current_user_id,
           chat_group_id: message.chat_group_id,
@@ -547,7 +551,7 @@ export function createMarkAsReadHandler(options: MessagesHandlerOptions) {
 
       // Cannot mark your own messages as read
       if (message.sender_user_id === current_user_id) {
-        console.error('[hazo_chat/messages/[id]/read PATCH] User cannot mark own message as read:', {
+        logger.error('[hazo_chat/messages/[id]/read PATCH] User cannot mark own message as read:', {
           message_id,
           current_user_id,
         });
@@ -559,7 +563,7 @@ export function createMarkAsReadHandler(options: MessagesHandlerOptions) {
 
       // Don't update if already read
       if (message.read_at) {
-        console.log('[hazo_chat/messages/[id]/read PATCH] Message already read:', message_id);
+        logger.info('[hazo_chat/messages/[id]/read PATCH] Message already read:', { message_id });
         return NextResponse.json({
           success: true,
           message: {
@@ -582,17 +586,17 @@ export function createMarkAsReadHandler(options: MessagesHandlerOptions) {
         );
         
         if (updated_rows.length === 0) {
-          console.warn('[hazo_chat/messages/[id]/read PATCH] No rows updated - message may not exist:', message_id);
+          logger.warn('[hazo_chat/messages/[id]/read PATCH] No rows updated - message may not exist:', { message_id });
           // Don't throw error, just log warning - message might have been deleted
         } else {
-          console.log('[hazo_chat/messages/[id]/read PATCH] Successfully updated', updated_rows.length, 'row(s)');
+          logger.info('[hazo_chat/messages/[id]/read PATCH] Successfully updated', { rows: updated_rows.length });
         }
       } catch (dbError) {
-        console.error('[hazo_chat/messages/[id]/read PATCH] Database error updating message:', dbError);
+        logger.error('[hazo_chat/messages/[id]/read PATCH] Database error updating message:', { dbError });
         throw dbError;
       }
 
-      console.log('[hazo_chat/messages/[id]/read PATCH] Message marked as read successfully:', message_id);
+      logger.info('[hazo_chat/messages/[id]/read PATCH] Message marked as read successfully:', { message_id });
 
       return NextResponse.json({
         success: true,
@@ -604,8 +608,8 @@ export function createMarkAsReadHandler(options: MessagesHandlerOptions) {
       });
     } catch (error) {
       const error_message = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[hazo_chat/messages/[id]/read PATCH] Error:', error_message, error);
-      
+      logger.error('[hazo_chat/messages/[id]/read PATCH] Error:', { error_message, error });
+
       return NextResponse.json(
         { success: false, error: 'Failed to mark message as read' },
         { status: 500 }
@@ -641,7 +645,8 @@ export function createMarkAsReadHandler(options: MessagesHandlerOptions) {
  * @returns DELETE handler function
  */
 export function createDeleteHandler(options: MessagesHandlerOptions) {
-  const { getHazoConnect, getUserIdFromRequest } = options;
+  const { getHazoConnect, getLogger, getUserIdFromRequest } = options;
+  const logger = getLogger();
 
   /**
    * DELETE handler - Soft delete a message
@@ -663,7 +668,7 @@ export function createDeleteHandler(options: MessagesHandlerOptions) {
         : await defaultGetUserIdFromRequest();
 
       if (!current_user_id) {
-        console.error('[hazo_chat/messages/[id] DELETE] No user ID - not authenticated');
+        logger.error('[hazo_chat/messages/[id] DELETE] No user ID - not authenticated');
         return createErrorResponse('User not authenticated', 401, 'UNAUTHENTICATED');
       }
 
@@ -672,11 +677,11 @@ export function createDeleteHandler(options: MessagesHandlerOptions) {
       const message_id = params.id;
 
       if (!message_id) {
-        console.error('[hazo_chat/messages/[id] DELETE] Missing message ID');
+        logger.error('[hazo_chat/messages/[id] DELETE] Missing message ID');
         return createErrorResponse('Message ID is required', 400, 'MISSING_MESSAGE_ID');
       }
 
-      console.log('[hazo_chat/messages/[id] DELETE] Deleting message:', {
+      logger.info('[hazo_chat/messages/[id] DELETE] Deleting message:', {
         message_id,
         current_user_id,
       });
@@ -693,19 +698,19 @@ export function createDeleteHandler(options: MessagesHandlerOptions) {
         );
         message = messages[0] || null;
       } catch (dbError) {
-        console.error('[hazo_chat/messages/[id] DELETE] Database error fetching message:', dbError);
+        logger.error('[hazo_chat/messages/[id] DELETE] Database error fetching message:', { dbError });
         throw dbError;
       }
 
       if (!message) {
-        console.error('[hazo_chat/messages/[id] DELETE] Message not found:', message_id);
+        logger.error('[hazo_chat/messages/[id] DELETE] Message not found:', { message_id });
         return createErrorResponse('Message not found', 404, 'MESSAGE_NOT_FOUND');
       }
 
       // Verify that the current user is a member of the chat group
-      const membership = await verifyGroupMembership(hazoConnect, current_user_id, message.chat_group_id);
+      const membership = await verifyGroupMembership(hazoConnect, current_user_id, message.chat_group_id, logger);
       if (!membership) {
-        console.error('[hazo_chat/messages/[id] DELETE] User is not a member of chat group:', {
+        logger.error('[hazo_chat/messages/[id] DELETE] User is not a member of chat group:', {
           message_id,
           current_user_id,
           chat_group_id: message.chat_group_id,
@@ -719,7 +724,7 @@ export function createDeleteHandler(options: MessagesHandlerOptions) {
 
       // Verify that the current user is the sender (only senders can delete their messages)
       if (message.sender_user_id !== current_user_id) {
-        console.error('[hazo_chat/messages/[id] DELETE] User is not the sender:', {
+        logger.error('[hazo_chat/messages/[id] DELETE] User is not the sender:', {
           message_id,
           current_user_id,
           sender_user_id: message.sender_user_id,
@@ -733,7 +738,7 @@ export function createDeleteHandler(options: MessagesHandlerOptions) {
 
       // Check if already deleted
       if (message.deleted_at) {
-        console.log('[hazo_chat/messages/[id] DELETE] Message already deleted:', message_id);
+        logger.info('[hazo_chat/messages/[id] DELETE] Message already deleted:', { message_id });
         return NextResponse.json({
           success: true,
           message: {
@@ -754,23 +759,16 @@ export function createDeleteHandler(options: MessagesHandlerOptions) {
         );
 
         if (updated_rows.length === 0) {
-          console.warn(
-            '[hazo_chat/messages/[id] DELETE] No rows updated - message may not exist:',
-            message_id
-          );
+          logger.warn('[hazo_chat/messages/[id] DELETE] No rows updated - message may not exist:', { message_id });
         } else {
-          console.log(
-            '[hazo_chat/messages/[id] DELETE] Successfully deleted',
-            updated_rows.length,
-            'row(s)'
-          );
+          logger.info('[hazo_chat/messages/[id] DELETE] Successfully deleted', { rows: updated_rows.length });
         }
       } catch (dbError) {
-        console.error('[hazo_chat/messages/[id] DELETE] Database error deleting message:', dbError);
+        logger.error('[hazo_chat/messages/[id] DELETE] Database error deleting message:', { dbError });
         throw dbError;
       }
 
-      console.log('[hazo_chat/messages/[id] DELETE] Message deleted successfully:', message_id);
+      logger.info('[hazo_chat/messages/[id] DELETE] Message deleted successfully:', { message_id });
 
       return NextResponse.json({
         success: true,
@@ -783,7 +781,7 @@ export function createDeleteHandler(options: MessagesHandlerOptions) {
       });
     } catch (error) {
       const error_message = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[hazo_chat/messages/[id] DELETE] Error:', error_message, error);
+      logger.error('[hazo_chat/messages/[id] DELETE] Error:', { error_message, error });
 
       return createErrorResponse('Failed to delete message', 500, 'INTERNAL_ERROR');
     }

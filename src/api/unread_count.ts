@@ -22,6 +22,7 @@
 
 import { createCrudService } from 'hazo_connect/server';
 import type { HazoConnectAdapter } from 'hazo_connect';
+import type { Logger } from 'hazo_logs';
 import type { ChatMessageRecord, ChatGroupUserRecord } from './types.js';
 
 /**
@@ -42,6 +43,22 @@ export interface UnreadCountFunctionOptions {
    * ```
    */
   getHazoConnect: () => unknown;
+
+  /**
+   * Function to get the logger instance from hazo_logs.
+   * Required for structured logging.
+   *
+   * @example
+   * ```typescript
+   * import { createLogger } from 'hazo_logs';
+   *
+   * const logger = createLogger('hazo_chat');
+   * const options = {
+   *   getLogger: () => logger
+   * };
+   * ```
+   */
+  getLogger: () => Logger;
 }
 
 /**
@@ -71,7 +88,8 @@ export interface UnreadCountResult {
  * @returns Function that takes UnreadCountParams and returns unread counts
  */
 export function createUnreadCountFunction(options: UnreadCountFunctionOptions) {
-  const { getHazoConnect } = options;
+  const { getHazoConnect, getLogger } = options;
+  const logger = getLogger();
 
   /**
    * Get unread message counts grouped by chat_group_id for a user
@@ -86,11 +104,11 @@ export function createUnreadCountFunction(options: UnreadCountFunctionOptions) {
       const { user_id, chat_group_ids } = params;
 
       if (!user_id || user_id.trim() === '') {
-        console.error('[hazo_chat_get_unread_count] Missing user_id');
+        logger.error('[hazo_chat_get_unread_count] Missing user_id');
         return [];
       }
 
-      console.log('[hazo_chat_get_unread_count] Fetching unread counts for:', {
+      logger.info('[hazo_chat_get_unread_count] Fetching unread counts for:', {
         user_id,
         chat_group_ids,
       });
@@ -109,7 +127,7 @@ export function createUnreadCountFunction(options: UnreadCountFunctionOptions) {
       );
 
       if (memberships.length === 0) {
-        console.log('[hazo_chat_get_unread_count] User is not a member of any groups');
+        logger.info('[hazo_chat_get_unread_count] User is not a member of any groups');
         return [];
       }
 
@@ -120,7 +138,7 @@ export function createUnreadCountFunction(options: UnreadCountFunctionOptions) {
         : user_group_ids;
 
       if (groups_to_check.length === 0) {
-        console.log('[hazo_chat_get_unread_count] No matching groups to check');
+        logger.info('[hazo_chat_get_unread_count] No matching groups to check');
         return [];
       }
 
@@ -168,7 +186,7 @@ export function createUnreadCountFunction(options: UnreadCountFunctionOptions) {
       // Sort by count descending (most unread first)
       results.sort((a, b) => b.count - a.count);
 
-      console.log('[hazo_chat_get_unread_count] Found unread counts:', {
+      logger.info('[hazo_chat_get_unread_count] Found unread counts:', {
         user_id,
         total_groups: results.length,
         total_unread: all_unread_messages.length,
@@ -177,7 +195,7 @@ export function createUnreadCountFunction(options: UnreadCountFunctionOptions) {
       return results;
     } catch (error) {
       const error_message = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[hazo_chat_get_unread_count] Error:', error_message, error);
+      logger.error('[hazo_chat_get_unread_count] Error:', { error_message, error });
 
       // Return empty array on error rather than throwing
       return [];

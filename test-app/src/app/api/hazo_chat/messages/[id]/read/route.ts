@@ -13,11 +13,23 @@ import { NextRequest } from "next/server";
 // @ts-ignore - webpack alias resolves this path
 import { get_hazo_connect_instance } from "hazo_auth/lib/hazo_connect_instance.server";
 import { createMarkAsReadHandler } from "hazo_chat/api";
+import { createLogger, type Logger } from "hazo_logs";
+
+// section: logger_creation
+// Lazy logger creation to avoid winston bundling issues with Next.js
+let logger: Logger | null = null;
+function getLogger(): Logger {
+  if (!logger) {
+    logger = createLogger("hazo_chat");
+  }
+  return logger;
+}
 
 // section: handler_creation
 // Create handler using the exportable factory from hazo_chat
 const { PATCH: patchHandler } = createMarkAsReadHandler({
-  getHazoConnect: () => get_hazo_connect_instance()
+  getHazoConnect: () => get_hazo_connect_instance(),
+  getLogger,
 });
 
 // section: wrapper_handler

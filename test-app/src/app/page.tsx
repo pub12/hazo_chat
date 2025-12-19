@@ -70,6 +70,9 @@ import { IoMailOutline } from 'react-icons/io5';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore - webpack alias resolves this path
 import { HazoChat } from 'hazo_chat/components';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - webpack alias resolves this path
+import type { ClientLogger } from 'hazo_chat';
 
 // ============================================================================
 // Demo Chat Component with Hardcoded Messages
@@ -809,6 +812,23 @@ export default function HazoChatTestPage() {
   const [chat_key, set_chat_key] = useState<number>(0);
   const [test_files, set_test_files] = useState<ReferenceFile[]>([]);
 
+  // Create client logger only on client-side to avoid SSR hydration issues
+  const [hazo_chat_logger, set_hazo_chat_logger] = useState<ClientLogger>({
+    error: async () => {},
+    warn: async () => {},
+    info: async () => {},
+    debug: async () => {},
+    flush: async () => {},
+    child: () => ({} as ClientLogger),
+  });
+
+  // Dynamically import and create client logger after mount
+  useEffect(() => {
+    import('hazo_logs/ui').then(({ createClientLogger }) => {
+      set_hazo_chat_logger(createClientLogger({ packageName: 'hazo_chat' }));
+    });
+  }, []);
+
   // fetch test files
   useEffect(() => {
     async function fetch_test_files() {
@@ -917,6 +937,7 @@ export default function HazoChatTestPage() {
                       <HazoChat
                         key={`sheet-${chat_key}`}
                         chat_group_id={selected_chat_group_id}
+                        logger={hazo_chat_logger}
                         reference_id={reference_id}
                         reference_type={reference_type}
                         additional_references={test_files.map(file => ({
@@ -955,6 +976,7 @@ export default function HazoChatTestPage() {
                     <HazoChat
                       key={`dialog-${chat_key}`}
                       chat_group_id={selected_chat_group_id}
+                      logger={hazo_chat_logger}
                       reference_id={reference_id}
                       reference_type={reference_type}
                       additional_references={test_files.map(file => ({
@@ -1057,6 +1079,7 @@ export default function HazoChatTestPage() {
               <HazoChat
                 key={`embedded-${chat_key}`}
                 chat_group_id={selected_chat_group_id}
+                logger={hazo_chat_logger}
                 reference_id={reference_id}
                 reference_type={reference_type}
                 additional_references={test_files.map(file => ({

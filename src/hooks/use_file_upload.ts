@@ -11,6 +11,7 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
+import type { ClientLogger } from 'hazo_logs/ui';
 import type {
   PendingAttachment,
   UploadedFile,
@@ -28,6 +29,8 @@ import {
 // ============================================================================
 
 interface UseFileUploadParams {
+  /** Logger instance for client-side logging */
+  logger: ClientLogger;
   /** Path/bucket for uploaded files */
   upload_location: string;
   /** Maximum file size in MB */
@@ -68,27 +71,28 @@ function create_preview_url(file: File): string | undefined {
 }
 
 /**
- * Default upload function (placeholder - should be overridden)
+ * Create default upload function (placeholder - should be overridden)
  */
-async function default_upload_function(
-  file: File,
-  location: string
-): Promise<UploadedFile> {
-  // This is a placeholder implementation
-  // In real usage, this would upload to cloud storage (e.g., Supabase Storage)
-  console.warn(
-    '[useFileUpload] Using default upload function. Override with upload_function prop.'
-  );
+function create_default_upload_function(
+  logger: ClientLogger
+): (file: File, location: string) => Promise<UploadedFile> {
+  return async (file: File, location: string): Promise<UploadedFile> => {
+    // This is a placeholder implementation
+    // In real usage, this would upload to cloud storage (e.g., Supabase Storage)
+    logger.warn(
+      '[useFileUpload] Using default upload function. Override with upload_function prop.'
+    );
 
-  // Simulate upload delay
-  await new Promise((resolve) => setTimeout(resolve, 1000));
+    // Simulate upload delay
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
-  return {
-    id: generate_attachment_id(),
-    name: file.name,
-    url: `${location}/${file.name}`,
-    mime_type: file.type,
-    file_size: file.size
+    return {
+      id: generate_attachment_id(),
+      name: file.name,
+      url: `${location}/${file.name}`,
+      mime_type: file.type,
+      file_size: file.size
+    };
   };
 }
 
@@ -97,11 +101,14 @@ async function default_upload_function(
 // ============================================================================
 
 export function useFileUpload({
+  logger,
   upload_location,
   max_file_size_mb = DEFAULT_MAX_FILE_SIZE_MB,
   allowed_types = DEFAULT_ALLOWED_TYPES,
-  upload_function = default_upload_function
+  upload_function
 }: UseFileUploadParams): UseFileUploadReturn {
+  // Use provided upload function or create default with logger
+  const effective_upload_function = upload_function ?? create_default_upload_function(logger);
   // -------------------------------------------------------------------------
   // State
   // -------------------------------------------------------------------------
@@ -210,7 +217,7 @@ export function useFileUpload({
       );
 
       try {
-        const result = await upload_function(attachment.file, upload_location);
+        const result = await effective_upload_function(attachment.file, upload_location);
 
         // Update status to uploaded
         if (is_mounted_ref.current) {
@@ -225,7 +232,7 @@ export function useFileUpload({
 
         return result;
       } catch (error) {
-        console.error('[useFileUpload] Upload error:', error);
+        logger.error('[useFileUpload] Upload error:', { error });
 
         // Update status to failed
         if (is_mounted_ref.current) {
@@ -245,7 +252,7 @@ export function useFileUpload({
         return null;
       }
     },
-    [upload_function, upload_location]
+    [effective_upload_function, upload_location, logger]
   );
 
   // -------------------------------------------------------------------------

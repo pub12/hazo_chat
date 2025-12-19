@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Package Overview
 
-hazo_chat is a React/Next.js chat component library (v3.x) for group-based communication with document sharing. It uses an **API-first architecture** where all data access occurs through fetch() calls to Next.js API endpoints - no server-side dependencies in client components.
+hazo_chat is a React/Next.js chat component library (v4.x) for group-based communication with document sharing. It uses an **API-first architecture** where all data access occurs through fetch() calls to Next.js API endpoints - no server-side dependencies in client components.
 
 **Architecture:** Group-based chat supporting multiple users in a single chat group. Designed for scenarios where multiple support staff can rotate on a single client chat session.
 
@@ -195,6 +195,7 @@ The component expects these endpoints (use handler factories):
 
 **Peer Dependencies:**
 - `hazo_connect` ^2.3.1 (required for API handlers)
+- `hazo_logs` ^1.0.0 (required for logging - v4.0+)
 - `next` >=14.0.0
 - `react`, `react-dom` ^18.0.0
 - `tailwindcss` >=3.0.0
@@ -222,6 +223,99 @@ The component expects these endpoints (use handler factories):
 - NEW: `ChatGroup.group_type` field
 - `ChatGroupUserRole`: EXPANDED to include 'owner' | 'admin' | 'member'
 - `ChatGroupWithMembers`: Added `owner_profile` field
+
+## Logging Integration (v4.0 - Breaking Change)
+
+v4.0 introduces mandatory logging using the `hazo_logs` peer dependency. All `console.*` calls have been replaced with structured logging.
+
+### Server-Side (API Handlers)
+
+All API handler factories now require a `getLogger` option:
+
+```typescript
+import { createLogger } from 'hazo_logs';
+import { createMessagesHandler, createDeleteHandler, createMarkAsReadHandler } from 'hazo_chat/api';
+
+// Create logger instance
+const logger = createLogger('hazo_chat');
+
+// Pass logger to handlers
+const handler = createMessagesHandler({
+  getHazoConnect: () => hazoConnect,
+  getLogger: () => logger,  // REQUIRED in v4.0
+});
+
+const deleteHandler = createDeleteHandler({
+  getHazoConnect: () => hazoConnect,
+  getLogger: () => logger,  // REQUIRED in v4.0
+});
+
+const markAsReadHandler = createMarkAsReadHandler({
+  getHazoConnect: () => hazoConnect,
+  getLogger: () => logger,  // REQUIRED in v4.0
+});
+```
+
+### Client-Side (React Components)
+
+The `HazoChat` component now requires a `logger` prop:
+
+```typescript
+import { createClientLogger } from 'hazo_logs/ui';
+import { HazoChat } from 'hazo_chat';
+
+// Create client logger
+const logger = createClientLogger({ packageName: 'hazo_chat' });
+
+// Pass to component
+<HazoChat
+  chat_group_id="..."
+  logger={logger}  // REQUIRED in v4.0
+  // ... other props
+/>
+```
+
+### Unread Count Function
+
+```typescript
+import { createLogger } from 'hazo_logs';
+import { createUnreadCountFunction } from 'hazo_chat/api';
+
+const logger = createLogger('hazo_chat');
+
+const getUnreadCount = createUnreadCountFunction({
+  getHazoConnect: () => hazoConnect,
+  getLogger: () => logger,  // REQUIRED in v4.0
+});
+```
+
+### Logger Interface
+
+The logger follows the `hazo_logs` interface:
+
+```typescript
+interface Logger {
+  error(message: string, data?: LogData): void;
+  warn(message: string, data?: LogData): void;
+  info(message: string, data?: LogData): void;
+  debug(message: string, data?: LogData): void;
+}
+
+interface ClientLogger {
+  error(message: string, data?: LogData): void;
+  warn(message: string, data?: LogData): void;
+  info(message: string, data?: LogData): void;
+  debug(message: string, data?: LogData): void;
+}
+```
+
+### Type Exports
+
+Logger types are re-exported from hazo_chat:
+
+```typescript
+import type { Logger, ClientLogger } from 'hazo_chat';
+```
 
 ## Unread Count Function Changes (v3.0)
 

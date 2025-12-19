@@ -88,6 +88,7 @@ function HazoChatInner({
   // Get context
   const {
     current_user,
+    logger,
     selected_reference,
     highlighted_message_id,
     pending_attachments,
@@ -117,6 +118,7 @@ function HazoChatInner({
     refresh: refresh_messages
   } = useChatMessages({
     chat_group_id,
+    logger,
     reference_id,
     reference_type,
     api_base_url,
@@ -183,6 +185,7 @@ function HazoChatInner({
     upload_all,
     is_uploading
   } = useFileUpload({
+    logger,
     upload_location: `${api_base_url}/uploads`
   });
 
@@ -484,6 +487,7 @@ function HazoChatInner({
 export function HazoChat(props: HazoChatProps) {
   const {
     chat_group_id,
+    logger,
     reference_id,
     reference_type = 'chat',
     api_base_url = '/api/hazo_chat',
@@ -514,6 +518,7 @@ export function HazoChat(props: HazoChatProps) {
   return (
     <TooltipProvider>
       <HazoChatProvider
+        logger={logger}
         api_base_url={api_base_url}
         initial_references={initial_refs}
       >

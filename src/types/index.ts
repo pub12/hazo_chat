@@ -1,14 +1,19 @@
 /**
  * Type definitions for the hazo_chat package
- * 
+ *
  * Contains all TypeScript interfaces and types used across the package
  * for props, messages, references, user profiles, and configuration.
- * 
+ *
  * This package uses an API-first architecture - all data access is done
  * via fetch() calls to API endpoints, not direct database access.
  */
 
 import type { ReactNode } from 'react';
+
+// Re-export Logger types from hazo_logs for consumer convenience
+export type { Logger } from 'hazo_logs';
+export type { ClientLogger } from 'hazo_logs/ui';
+import type { ClientLogger } from 'hazo_logs/ui';
 
 // ============================================================================
 // User Profile Types
@@ -226,6 +231,11 @@ export interface FileValidationResult {
 export interface HazoChatProps {
   /** UUID of the chat group (required) */
   chat_group_id: string;
+  /**
+   * Logger instance from hazo_logs/ui (required).
+   * Create using: createClientLogger({ packageName: 'hazo_chat' })
+   */
+  logger: ClientLogger;
   /** Main field reference ID for chat context grouping */
   reference_id?: string;
   /** Reference type for the main reference (default: 'chat') */
@@ -417,7 +427,10 @@ export interface HazoChatContextActions {
 /**
  * Full HazoChatContext value
  */
-export interface HazoChatContextValue extends HazoChatContextState, HazoChatContextActions {}
+export interface HazoChatContextValue extends HazoChatContextState, HazoChatContextActions {
+  /** Logger instance from hazo_logs/ui */
+  logger: ClientLogger;
+}
 
 /**
  * Real-time update mode

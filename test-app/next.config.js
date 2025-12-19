@@ -58,14 +58,16 @@ const nextConfig = {
     // Enable package exports resolution
     config.resolve.conditionNames = ['import', 'require', 'default'];
 
-    // CRITICAL: Exclude sql.js and server-only modules from webpack bundling
+    // CRITICAL: Exclude sql.js, winston, and server-only modules from webpack bundling
     if (isServer) {
       config.externals = config.externals || [];
       if (Array.isArray(config.externals)) {
         config.externals.push("sql.js");
         config.externals.push("hazo_notify");
+        config.externals.push("winston");
+        config.externals.push("winston-daily-rotate-file");
       } else {
-        config.externals = [config.externals, "sql.js", "hazo_notify"];
+        config.externals = [config.externals, "sql.js", "hazo_notify", "winston", "winston-daily-rotate-file"];
       }
     } else {
       // For client bundles, mark server-only modules as external
@@ -89,11 +91,13 @@ const nextConfig = {
   experimental: {
     // Enable external directory support for workspace packages
     externalDir: true,
-    // Exclude sql.js and hazo_notify from server component bundling
+    // Exclude sql.js, hazo_notify, and winston from server component bundling
     serverComponentsExternalPackages: [
       "sql.js",
       "better-sqlite3",
       "hazo_notify",
+      "winston",
+      "winston-daily-rotate-file",
     ],
   },
 };

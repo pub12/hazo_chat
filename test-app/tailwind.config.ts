@@ -5,6 +5,7 @@
  */
 
 import type { Config } from 'tailwindcss';
+import { tailwindSafelist, tailwindContentPath } from 'hazo_logs/tailwind';
 
 const config: Config = {
   darkMode: ['class'],
@@ -15,7 +16,10 @@ const config: Config = {
     // Include hazo_chat package components
     '../src/**/*.{js,ts,jsx,tsx}',
     '../dist/**/*.{js,ts,jsx,tsx}',
+    // Include hazo_logs UI components
+    tailwindContentPath,
   ],
+  safelist: tailwindSafelist,
   theme: {
     extend: {
       fontFamily: {

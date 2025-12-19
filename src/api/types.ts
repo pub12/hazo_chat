@@ -6,6 +6,10 @@
  */
 
 import type { NextRequest } from 'next/server';
+import type { Logger } from 'hazo_logs';
+
+// Re-export Logger type for consumer convenience
+export type { Logger } from 'hazo_logs';
 
 // ============================================================================
 // Standardized API Response Types
@@ -61,6 +65,22 @@ export interface MessagesHandlerOptions {
    * ```
    */
   getHazoConnect: () => unknown;
+
+  /**
+   * Function to get the logger instance from hazo_logs.
+   * Required for structured logging.
+   *
+   * @example
+   * ```typescript
+   * import { createLogger } from 'hazo_logs';
+   *
+   * const logger = createLogger('hazo_chat');
+   * const options = {
+   *   getLogger: () => logger
+   * };
+   * ```
+   */
+  getLogger: () => Logger;
 
   /**
    * Optional function to extract user ID from the request.
