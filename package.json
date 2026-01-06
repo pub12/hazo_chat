@@ -43,6 +43,7 @@
     "build:test-app": "npm run build && cd test-app && npm run build",
     "clean": "rm -rf dist",
     "prebuild": "npm run clean",
+    "prepublishOnly": "npm run build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
