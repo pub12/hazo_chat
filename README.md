@@ -1320,7 +1320,9 @@ All buttons are sized consistently (`h-10 w-10`) to align properly with the text
 
 ## Configuration
 
-### hazo_chat_config.ini (Optional)
+### config/hazo_chat_config.ini (Optional)
+
+Configuration files are stored in the `config/` directory. Consuming applications should also use a `config/` directory to store their configuration files for consistency across hazo packages.
 
 ```ini
 [chat]

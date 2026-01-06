@@ -1221,9 +1221,11 @@ Ensure all required CSS variables are defined. hazo_chat uses shadcn/ui standard
 
 ## 7. Configuration (Optional)
 
+Configuration files are stored in the `config/` directory. Consuming applications should also use a `config/` directory to store their configuration files for consistency across hazo packages.
+
 ### hazo_connect Configuration
 
-Create `hazo_connect_config.ini` in project root:
+Create `config/hazo_connect_config.ini`:
 
 ```ini
 [database]
@@ -1233,7 +1235,7 @@ sqlite_path = ./data/app.db
 
 ### hazo_chat Configuration
 
-Create `hazo_chat_config.ini` in project root (optional):
+Create `config/hazo_chat_config.ini` (optional):
 
 ```ini
 [chat]
