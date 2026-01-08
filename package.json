@@ -1,6 +1,6 @@
 {
   "name": "hazo_chat",
-  "version": "4.0.5",
+  "version": "4.0.6",
   "description": "Chat interface for group-based communication with API-first architecture",
   "type": "module",
   "main": "./dist/index.js",
