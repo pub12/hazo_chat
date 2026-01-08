@@ -42,7 +42,7 @@ A comprehensive, step-by-step guide for setting up hazo_chat in a Next.js projec
 ### Step 2.1: Install Core Packages
 
 ```bash
-npm install hazo_chat hazo_connect
+npm install hazo_chat hazo_connect hazo_logs
 ```
 
 ### Step 2.2: Install Peer Dependencies (if not already installed)
@@ -52,7 +52,7 @@ npm install react react-dom next
 ```
 
 ### Verification
-- [ ] `package.json` contains `hazo_chat` and `hazo_connect`
+- [ ] `package.json` contains `hazo_chat`, `hazo_connect`, and `hazo_logs`
 - [ ] No npm installation errors
 - [ ] `node_modules/hazo_chat` exists
 
@@ -777,12 +777,17 @@ export async function GET(request: NextRequest) {
 'use client';
 
 import { HazoChat } from 'hazo_chat';
+import { createClientLogger } from 'hazo_logs/ui';
+
+// Create client logger (required in v4.0+)
+const logger = createClientLogger({ packageName: 'hazo_chat' });
 
 export default function ChatPage() {
   return (
     <div className="h-screen">
       <HazoChat
         chat_group_id="group-uuid-here"
+        logger={logger}
         title="Chat"
         subtitle="Direct Message"
       />
@@ -797,11 +802,15 @@ export default function ChatPage() {
 'use client';
 
 import { HazoChat } from 'hazo_chat';
+import { createClientLogger } from 'hazo_logs/ui';
+
+const logger = createClientLogger({ packageName: 'hazo_chat' });
 
 export default function ChatPage() {
   return (
     <HazoChat
       chat_group_id="group-123"
+      logger={logger}
       reference_id="project-456"
       reference_type="project_chat"
       api_base_url="/api/hazo_chat"
@@ -818,6 +827,7 @@ export default function ChatPage() {
         }
       ]}
       on_close={() => window.history.back()}
+      read_only={false}  // Set true for view-only mode
       className="h-[600px]"
     />
   );

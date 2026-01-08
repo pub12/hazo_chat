@@ -641,6 +641,28 @@ CREATE INDEX idx_hazo_chat_group ON hazo_chat(chat_group_id);
 
 ---
 
-**Document Version:** 3.0
-**Last Updated:** 2025-12-08
+## Component Rendering Behavior
+
+### Conditional Rendering
+
+The `HazoChatInput` component is conditionally rendered based on the `read_only` prop:
+
+```typescript
+// In HazoChatInner component
+{!read_only && (
+  <div className="cls_input_row border-t bg-background">
+    <HazoChatInput ... />
+  </div>
+)}
+```
+
+When `read_only={true}`:
+- Chat input area is completely hidden
+- Users can view messages but cannot send new ones
+- Useful for archived conversations, audit views, or read-only access
+
+---
+
+**Document Version:** 4.0.4
+**Last Updated:** 2026-01-08
 **Maintained By:** hazo_chat development team

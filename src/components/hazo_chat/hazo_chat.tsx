@@ -65,6 +65,7 @@ interface HazoChatInnerProps {
   show_sidebar_toggle?: boolean;
   show_delete_button?: boolean;
   bubble_radius?: 'default' | 'full';
+  read_only?: boolean;
 }
 
 function HazoChatInner({
@@ -83,7 +84,8 @@ function HazoChatInner({
   messages_per_page = DEFAULT_MESSAGES_PER_PAGE,
   show_sidebar_toggle = false,
   show_delete_button = true,
-  bubble_radius = 'default'
+  bubble_radius = 'default',
+  read_only = false
 }: HazoChatInnerProps) {
   // Get context
   const {
@@ -439,16 +441,18 @@ function HazoChatInner({
         </div>
       </div>
 
-      {/* Row 4: Chat input (full width) */}
-      <div className="cls_input_row border-t bg-background">
-        <HazoChatInput
-          on_send={handle_send}
-          pending_attachments={pending_attachments}
-          on_add_attachment={handle_add_attachment}
-          on_remove_attachment={handle_remove_attachment}
-          is_disabled={!current_user || is_uploading}
-        />
-      </div>
+      {/* Row 4: Chat input (full width) - hidden in read-only mode */}
+      {!read_only && (
+        <div className="cls_input_row border-t bg-background">
+          <HazoChatInput
+            on_send={handle_send}
+            pending_attachments={pending_attachments}
+            on_add_attachment={handle_add_attachment}
+            on_remove_attachment={handle_remove_attachment}
+            is_disabled={!current_user || is_uploading}
+          />
+        </div>
+      )}
 
       {/* Connection status indicator */}
       {polling_status !== 'connected' && (
@@ -502,6 +506,7 @@ export function HazoChat(props: HazoChatProps) {
     show_sidebar_toggle,
     show_delete_button,
     bubble_radius,
+    read_only,
     className
   } = props;
 
@@ -538,6 +543,7 @@ export function HazoChat(props: HazoChatProps) {
           show_sidebar_toggle={show_sidebar_toggle}
           show_delete_button={show_delete_button}
           bubble_radius={bubble_radius}
+          read_only={read_only}
           className={className}
         />
       </HazoChatProvider>

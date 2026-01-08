@@ -2,6 +2,10 @@
 
 A full-featured React chat component library for group-based communication with document sharing, file attachments, and real-time messaging capabilities.
 
+**Version 4.0.4** - Added `read_only` prop for view-only mode (hides chat input).
+
+**Version 4.0** - Mandatory logging integration with `hazo_logs`. See [Logging Integration](#logging-integration) section.
+
 **Version 3.1** - Generic schema supporting multiple chat patterns: support (client-to-staff), peer (1:1), and group conversations.
 
 **Version 3.0** - Introduced group-based chat architecture. Multiple users can participate in a single chat group, perfect for support staff rotating on client sessions.
@@ -42,7 +46,7 @@ A full-featured React chat component library for group-based communication with 
 ## Installation
 
 ```bash
-npm install hazo_chat hazo_connect next
+npm install hazo_chat hazo_connect hazo_logs next
 ```
 
 ## UI Requirements
@@ -480,12 +484,17 @@ export { GET, POST };
 'use client';
 
 import { HazoChat } from 'hazo_chat';
+import { createClientLogger } from 'hazo_logs/ui';
+
+// Create client logger (required in v4.0+)
+const logger = createClientLogger({ packageName: 'hazo_chat' });
 
 export default function ChatPage() {
   return (
     <div className="h-screen">
       <HazoChat
         chat_group_id="group-uuid"
+        logger={logger}
         reference_id="conversation-123"
         reference_type="support"
         title="Chat with Support"
@@ -738,6 +747,8 @@ export async function getUnreadCounts(receiver_user_id: string) {
 | Prop | Type | Required | Default | Description |
 |------|------|----------|---------|-------------|
 | `chat_group_id` | `string` | ✅ | - | UUID of the chat group (CHANGED from `receiver_user_id` in v3.0) |
+| `logger` | `ClientLogger` | ✅ | - | Logger instance from hazo_logs/ui (NEW in v4.0) |
+| `read_only` | `boolean` | ❌ | `false` | When true, hides chat input for view-only mode (NEW in v4.0.4) |
 | `reference_id` | `string` | ❌ | - | Reference ID for chat context grouping |
 | `reference_type` | `string` | ❌ | `'chat'` | Type of reference |
 | `api_base_url` | `string` | ❌ | `'/api/hazo_chat'` | Base URL for API endpoints |
@@ -757,8 +768,13 @@ export async function getUnreadCounts(receiver_user_id: string) {
 ### Example with All Props
 
 ```tsx
+import { createClientLogger } from 'hazo_logs/ui';
+
+const logger = createClientLogger({ packageName: 'hazo_chat' });
+
 <HazoChat
   chat_group_id="group-123"
+  logger={logger}
   reference_id="project-456"
   reference_type="project_chat"
   api_base_url="/api/hazo_chat"
@@ -771,6 +787,7 @@ export async function getUnreadCounts(receiver_user_id: string) {
     { id: 'doc-1', type: 'document', name: 'Design.pdf', url: '/files/design.pdf', scope: 'field' }
   ]}
   on_close={() => console.log('Chat closed')}
+  read_only={false}               // set to true for view-only mode
   className="h-[600px]"
 />
 ```
@@ -781,13 +798,31 @@ hazo_chat provides props to customize component appearance and behavior without 
 
 ### Common Customizations
 
+#### Read-Only Mode (View Only)
+
+To display chat messages without allowing users to send new messages:
+
+```tsx
+<HazoChat
+  chat_group_id="group-123"
+  logger={logger}
+  read_only={true}  // Hides chat input - view only
+/>
+```
+
+Use cases:
+- Displaying archived conversations
+- Showing chat history to non-participants
+- Read-only audit views
+
 #### Hide Sidebar Toggle Button (Hamburger Menu)
 
 By default, the sidebar toggle button is hidden (`show_sidebar_toggle={false}`). To show it:
 
 ```tsx
 <HazoChat
-  receiver_user_id="user-123"
+  chat_group_id="group-123"
+  logger={logger}
   show_sidebar_toggle={true}  // Show hamburger menu button
 />
 ```
@@ -798,7 +833,8 @@ To hide the delete button on chat bubbles:
 
 ```tsx
 <HazoChat
-  receiver_user_id="user-123"
+  chat_group_id="group-123"
+  logger={logger}
   show_delete_button={false}  // Hide delete button
 />
 ```
@@ -809,7 +845,8 @@ To make all chat bubbles fully round (instead of the default style with a tail):
 
 ```tsx
 <HazoChat
-  receiver_user_id="user-123"
+  chat_group_id="group-123"
+  logger={logger}
   bubble_radius="full"  // Fully round all corners
 />
 ```
@@ -818,6 +855,7 @@ To make all chat bubbles fully round (instead of the default style with a tail):
 
 | Prop | Default | Options | Description |
 |------|--------|---------|------------|
+| `read_only` | `false` | `boolean` | Hide chat input for view-only mode |
 | `show_sidebar_toggle` | `false` | `boolean` | Show/hide the hamburger menu button |
 | `show_delete_button` | `true` | `boolean` | Show/hide delete button on chat bubbles |
 | `bubble_radius` | `'default'` | `'default' \| 'full'` | Bubble border radius style |
@@ -827,9 +865,11 @@ To make all chat bubbles fully round (instead of the default style with a tail):
 ```tsx
 <HazoChat
   chat_group_id="group-123"
+  logger={logger}
   reference_id="project-456"
-  show_sidebar_toggle={false}    // Hide hamburger menu
-  show_delete_button={false}     // Hide delete buttons
+  read_only={false}               // Set true for view-only mode
+  show_sidebar_toggle={false}     // Hide hamburger menu
+  show_delete_button={false}      // Hide delete buttons
   bubble_radius="full"            // Fully round bubbles
   title="Project Chat"
   className="h-[600px]"

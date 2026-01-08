@@ -264,6 +264,8 @@ export interface HazoChatProps {
   show_delete_button?: boolean;
   /** Bubble border radius style - default: 'default' */
   bubble_radius?: 'default' | 'full';
+  /** Read-only mode - hides chat input when true (default: false) */
+  read_only?: boolean;
   /** Additional CSS classes */
   className?: string;
 }

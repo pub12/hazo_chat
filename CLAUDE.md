@@ -204,6 +204,8 @@ The component expects these endpoints (use handler factories):
 
 **HazoChat component:**
 - `chat_group_id` (string, required) - **CHANGED from `receiver_user_id`**
+- `logger` (ClientLogger, required) - **NEW in v4.0** - Logger instance from hazo_logs/ui
+- `read_only` (boolean, optional, default: false) - **NEW in v4.0.4** - When true, hides chat input for read-only viewing
 - `reference_id`, `reference_type` (unchanged)
 - All other props remain the same
 
