@@ -26,6 +26,7 @@ import { createCrudService, getSqliteAdminService } from 'hazo_connect/server';
 import type { HazoConnectAdapter } from 'hazo_connect';
 import type { Logger } from 'hazo_logs';
 import type { MessagesHandlerOptions, ChatMessageInput, ChatMessageRecord, ChatGroupUserRecord, ApiErrorResponse, ApiSuccessResponse } from './types.js';
+import { is_valid_uuid } from './validation.js';
 
 // ============================================================================
 // Constants for validation
@@ -162,6 +163,17 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
       if (!chat_group_id) {
         logger.error('[hazo_chat/messages GET] Missing chat_group_id');
         return createErrorResponse('chat_group_id is required', 400, 'MISSING_CHAT_GROUP');
+      }
+
+      // Validate UUID formats before database queries
+      if (!is_valid_uuid(chat_group_id)) {
+        logger.debug('[hazo_chat/messages GET] Invalid chat_group_id format:', { chat_group_id });
+        return createErrorResponse('chat_group_id must be a valid UUID', 400, 'INVALID_UUID_FORMAT');
+      }
+
+      if (!is_valid_uuid(current_user_id)) {
+        logger.debug('[hazo_chat/messages GET] Invalid user_id format:', { current_user_id });
+        return createErrorResponse('Invalid user ID format', 400, 'INVALID_UUID_FORMAT');
       }
 
       // Get hazo_connect instance early for membership check
@@ -328,6 +340,17 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
       if (!chat_group_id) {
         logger.error('[hazo_chat/messages POST] Missing chat_group_id');
         return createErrorResponse('chat_group_id is required', 400, 'MISSING_CHAT_GROUP');
+      }
+
+      // Validate UUID formats before database queries
+      if (!is_valid_uuid(chat_group_id)) {
+        logger.debug('[hazo_chat/messages POST] Invalid chat_group_id format:', { chat_group_id });
+        return createErrorResponse('chat_group_id must be a valid UUID', 400, 'INVALID_UUID_FORMAT');
+      }
+
+      if (!is_valid_uuid(sender_user_id)) {
+        logger.debug('[hazo_chat/messages POST] Invalid user_id format:', { sender_user_id });
+        return createErrorResponse('Invalid user ID format', 400, 'INVALID_UUID_FORMAT');
       }
 
       // Get hazo_connect instance early for membership check
@@ -506,6 +529,23 @@ export function createMarkAsReadHandler(options: MessagesHandlerOptions) {
         );
       }
 
+      // Validate UUID formats before database queries
+      if (!is_valid_uuid(message_id)) {
+        logger.debug('[hazo_chat/messages/[id]/read PATCH] Invalid message_id format:', { message_id });
+        return NextResponse.json(
+          { success: false, error: 'message_id must be a valid UUID', error_code: 'INVALID_UUID_FORMAT' },
+          { status: 400 }
+        );
+      }
+
+      if (!is_valid_uuid(current_user_id)) {
+        logger.debug('[hazo_chat/messages/[id]/read PATCH] Invalid user_id format:', { current_user_id });
+        return NextResponse.json(
+          { success: false, error: 'Invalid user ID format', error_code: 'INVALID_UUID_FORMAT' },
+          { status: 400 }
+        );
+      }
+
       logger.info('[hazo_chat/messages/[id]/read PATCH] Marking message as read:', {
         message_id,
         current_user_id,
@@ -679,6 +719,17 @@ export function createDeleteHandler(options: MessagesHandlerOptions) {
       if (!message_id) {
         logger.error('[hazo_chat/messages/[id] DELETE] Missing message ID');
         return createErrorResponse('Message ID is required', 400, 'MISSING_MESSAGE_ID');
+      }
+
+      // Validate UUID formats before database queries
+      if (!is_valid_uuid(message_id)) {
+        logger.debug('[hazo_chat/messages/[id] DELETE] Invalid message_id format:', { message_id });
+        return createErrorResponse('message_id must be a valid UUID', 400, 'INVALID_UUID_FORMAT');
+      }
+
+      if (!is_valid_uuid(current_user_id)) {
+        logger.debug('[hazo_chat/messages/[id] DELETE] Invalid user_id format:', { current_user_id });
+        return createErrorResponse('Invalid user ID format', 400, 'INVALID_UUID_FORMAT');
       }
 
       logger.info('[hazo_chat/messages/[id] DELETE] Deleting message:', {

@@ -43,6 +43,9 @@ export {
 } from './messages.js';
 export { createUnreadCountFunction } from './unread_count.js';
 
+// Export validation utilities
+export { is_valid_uuid, validate_uuid_array } from './validation.js';
+
 // Export types
 export type {
   MessagesHandlerOptions,
@@ -53,6 +56,7 @@ export type {
   PaginationMeta,
 } from './types.js';
 export type { UnreadCountFunctionOptions, UnreadCountResult } from './unread_count.js';
+export type { UuidArrayValidationResult } from './validation.js';
 
 
 

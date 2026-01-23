@@ -24,6 +24,7 @@ import { createCrudService } from 'hazo_connect/server';
 import type { HazoConnectAdapter } from 'hazo_connect';
 import type { Logger } from 'hazo_logs';
 import type { ChatMessageRecord, ChatGroupUserRecord } from './types.js';
+import { is_valid_uuid, validate_uuid_array } from './validation.js';
 
 /**
  * Options for creating the unread count function
@@ -101,11 +102,32 @@ export function createUnreadCountFunction(options: UnreadCountFunctionOptions) {
     params: UnreadCountParams
   ): Promise<UnreadCountResult[]> {
     try {
-      const { user_id, chat_group_ids } = params;
+      let { user_id, chat_group_ids } = params;
 
       if (!user_id || user_id.trim() === '') {
         logger.error('[hazo_chat_get_unread_count] Missing user_id');
         return [];
+      }
+
+      // Validate user_id format before database queries
+      if (!is_valid_uuid(user_id)) {
+        logger.debug('[hazo_chat_get_unread_count] Invalid user_id format:', { user_id });
+        return [];
+      }
+
+      // Validate chat_group_ids if provided (lenient mode: filter to valid IDs only)
+      if (chat_group_ids && chat_group_ids.length > 0) {
+        const validation = validate_uuid_array(chat_group_ids);
+        if (!validation.all_valid) {
+          logger.debug('[hazo_chat_get_unread_count] Invalid chat_group_ids:', {
+            invalid: validation.invalid,
+          });
+          if (validation.valid.length === 0) {
+            return [];
+          }
+          // Continue with only valid IDs (lenient mode)
+          chat_group_ids = validation.valid;
+        }
       }
 
       logger.info('[hazo_chat_get_unread_count] Fetching unread counts for:', {
