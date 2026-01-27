@@ -153,6 +153,11 @@ export function useChatMessages({
   const polling_timer_ref = useRef<ReturnType<typeof setTimeout> | null>(null);
   const is_mounted_ref = useRef(true);
   const is_polling_ref = useRef(false);
+  const is_initial_loading_ref = useRef(false);
+  // Store messages in a ref for stable access in callbacks without causing re-creation
+  const messages_ref = useRef<ChatMessage[]>([]);
+  // Store current_user_id in a ref for stable access in polling callback
+  const current_user_id_ref = useRef<string | null>(null);
 
   // -------------------------------------------------------------------------
   // Memoized config to prevent effect re-runs
@@ -169,6 +174,24 @@ export function useChatMessages({
     }),
     [chat_group_id, reference_id, reference_type, api_base_url, realtime_mode, polling_interval, messages_per_page]
   );
+
+  // -------------------------------------------------------------------------
+  // Keep refs in sync with state (for stable callback access)
+  // -------------------------------------------------------------------------
+  useEffect(() => {
+    messages_ref.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    current_user_id_ref.current = current_user_id;
+  }, [current_user_id]);
+
+  // -------------------------------------------------------------------------
+  // Reset loading guard when chat_group_id changes (allow new load for different group)
+  // -------------------------------------------------------------------------
+  useEffect(() => {
+    is_initial_loading_ref.current = false;
+  }, [config.chat_group_id, config.reference_id]);
 
   // -------------------------------------------------------------------------
   // Cleanup on unmount
@@ -373,13 +396,19 @@ export function useChatMessages({
   );
 
   // -------------------------------------------------------------------------
-  // Initial load
+  // Initial load (with guard against concurrent calls)
   // -------------------------------------------------------------------------
   const load_initial = useCallback(async () => {
     if (!config.chat_group_id) {
       set_is_loading(false);
       return;
     }
+
+    // Guard against concurrent initial loads
+    if (is_initial_loading_ref.current) {
+      return;
+    }
+    is_initial_loading_ref.current = true;
 
     set_is_loading(true);
     set_error(null);
@@ -417,6 +446,7 @@ export function useChatMessages({
         set_polling_status('error');
       }
     } finally {
+      is_initial_loading_ref.current = false;
       if (is_mounted_ref.current) {
         set_is_loading(false);
       }
@@ -466,6 +496,7 @@ export function useChatMessages({
 
   // -------------------------------------------------------------------------
   // Poll for new messages (uses setTimeout for proper backoff)
+  // Uses refs to access latest messages/user_id to avoid recreating callback
   // -------------------------------------------------------------------------
   const schedule_next_poll = useCallback(() => {
     if (!is_mounted_ref.current || config.realtime_mode !== 'polling' || !config.chat_group_id) {
@@ -481,16 +512,19 @@ export function useChatMessages({
       is_polling_ref.current = true;
 
       try {
-        // Fetch only newer messages since our latest
-        const latest_message = messages[messages.length - 1];
+        // Use ref to get latest messages without causing callback re-creation
+        const current_messages = messages_ref.current;
+        const latest_message = current_messages[current_messages.length - 1];
+        const user_id = current_user_id_ref.current;
+
         const result = await fetch_messages_from_api(
           latest_message
             ? { cursor: latest_message.created_at, direction: 'newer', limit: 50 }
             : undefined
         );
 
-        if (result.messages.length > 0 && is_mounted_ref.current && current_user_id) {
-          const transformed = await transform_messages(result.messages, current_user_id);
+        if (result.messages.length > 0 && is_mounted_ref.current && user_id) {
+          const transformed = await transform_messages(result.messages, user_id);
 
           set_messages((prev) => {
             // Merge new messages, avoiding duplicates
@@ -531,7 +565,7 @@ export function useChatMessages({
         }
       }
     }, delay);
-  }, [config.realtime_mode, config.chat_group_id, get_poll_delay, fetch_messages_from_api, transform_messages, messages, current_user_id]);
+  }, [config.realtime_mode, config.chat_group_id, get_poll_delay, fetch_messages_from_api, transform_messages, logger]);
 
   // -------------------------------------------------------------------------
   // Start/stop polling based on realtime_mode
@@ -779,6 +813,7 @@ export function useChatMessages({
   const refresh = useCallback(() => {
     cursor_ref.current = null;
     retry_count_ref.current = 0;
+    is_initial_loading_ref.current = false; // Reset guard to allow fresh load
     set_messages([]);
     load_initial();
   }, [load_initial]);
