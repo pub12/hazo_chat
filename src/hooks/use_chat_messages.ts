@@ -158,6 +158,8 @@ export function useChatMessages({
   const messages_ref = useRef<ChatMessage[]>([]);
   // Store current_user_id in a ref for stable access in polling callback
   const current_user_id_ref = useRef<string | null>(null);
+  // Track if we've logged polling start (to avoid repeated logs)
+  const has_logged_polling_start_ref = useRef(false);
 
   // -------------------------------------------------------------------------
   // Memoized config to prevent effect re-runs
@@ -191,6 +193,7 @@ export function useChatMessages({
   // -------------------------------------------------------------------------
   useEffect(() => {
     is_initial_loading_ref.current = false;
+    has_logged_polling_start_ref.current = false; // Reset when chat group changes
   }, [config.chat_group_id, config.reference_id]);
 
   // -------------------------------------------------------------------------
@@ -547,11 +550,12 @@ export function useChatMessages({
           set_polling_status('connected');
         }
       } catch (err) {
-        logger.error('[useChatMessages] Polling error:', { error: err });
         retry_count_ref.current += 1;
 
         if (is_mounted_ref.current) {
           if (retry_count_ref.current >= MAX_RETRY_ATTEMPTS) {
+            // Only log error when max retries reached
+            logger.error('[useChatMessages] Polling failed after max retries', { error: err });
             set_polling_status('error');
           } else {
             set_polling_status('reconnecting');
@@ -579,6 +583,14 @@ export function useChatMessages({
 
     // Only start polling if mode is 'polling' and we have a chat group
     if (config.realtime_mode === 'polling' && config.chat_group_id && current_user_id) {
+      // Log once when polling starts
+      if (!has_logged_polling_start_ref.current) {
+        logger.debug('[useChatMessages] Polling enabled', {
+          interval: config.polling_interval,
+          chat_group_id: config.chat_group_id,
+        });
+        has_logged_polling_start_ref.current = true;
+      }
       schedule_next_poll();
     } else if (config.realtime_mode === 'manual') {
       set_polling_status('connected');
@@ -590,7 +602,7 @@ export function useChatMessages({
         polling_timer_ref.current = null;
       }
     };
-  }, [config.realtime_mode, config.chat_group_id, current_user_id, schedule_next_poll]);
+  }, [config.realtime_mode, config.chat_group_id, config.polling_interval, current_user_id, schedule_next_poll, logger]);
 
   // -------------------------------------------------------------------------
   // Initial load effect

@@ -2,6 +2,8 @@
 
 A full-featured React chat component library for group-based communication with document sharing, file attachments, and real-time messaging capabilities.
 
+**Version 4.0.10** - Upgraded hazo_logs to 1.0.9 (Next.js 16 Turbopack support). Reduced polling log verbosity (single debug log when polling starts, errors only after max retries).
+
 **Version 4.0.8** - Fixed excessive API calls caused by polling callback instability and concurrent initial load requests.
 
 **Version 4.0.4** - Added `read_only` prop for view-only mode (hides chat input).
