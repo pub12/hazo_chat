@@ -216,7 +216,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
         limit = Math.min(parsed_limit, MAX_LIMIT);
       }
 
-      logger.info('[hazo_chat/messages GET] Fetching messages:', {
+      logger.debug('[hazo_chat/messages GET] Fetching messages:', {
         current_user_id,
         chat_group_id,
         reference_id,
@@ -283,7 +283,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
         throw dbError;
       }
 
-      logger.info('[hazo_chat/messages GET] Found messages:', { count: messages.length });
+      logger.debug('[hazo_chat/messages GET] Found messages:', { count: messages.length });
 
       // Determine if there are more messages
       const has_more = messages.length === limit;

@@ -44,16 +44,9 @@ export function HazoChatHeader({
       e.preventDefault();
       e.stopPropagation();
 
-      // Log for debugging
-      console.log('[HazoChatHeader] Close button clicked, on_close:', typeof on_close);
-
       // Call the close handler if provided
       if (typeof on_close === 'function') {
-        try {
-          on_close();
-        } catch (err) {
-          console.error('[HazoChatHeader] Error calling on_close:', err);
-        }
+        on_close();
       }
     },
     [on_close]

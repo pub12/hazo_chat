@@ -178,23 +178,15 @@ function HazoChatMessagesInner({
   // -------------------------------------------------------------------------
   // Handle reference click in message
   // -------------------------------------------------------------------------
-  const handle_reference_click = useCallback((reference: ChatReferenceItem) => {
+  const handle_reference_click = useCallback((_reference: ChatReferenceItem) => {
     // This would be handled by parent via context
-    console.log('[HazoChatMessages] Reference clicked:', reference);
   }, []);
 
   // -------------------------------------------------------------------------
   // Auto-mark messages as read when they become visible
   // -------------------------------------------------------------------------
   useEffect(() => {
-    console.log('[HazoChatMessages] Mark-as-read effect running:', {
-      has_on_mark_as_read: !!on_mark_as_read,
-      current_user_id,
-      total_messages: messages.length,
-    });
-
     if (!on_mark_as_read) {
-      console.warn('[HazoChatMessages] on_mark_as_read not provided - cannot mark messages as read');
       return;
     }
 
@@ -207,11 +199,6 @@ function HazoChatMessagesInner({
         !marked_as_read_ref.current.has(msg.id)
     );
 
-    console.log('[HazoChatMessages] Unread messages to observe:', {
-      count: unread_messages.length,
-      message_ids: unread_messages.map(m => m.id),
-    });
-
     if (unread_messages.length === 0) return;
 
     // Find the ScrollArea viewport (the actual scrolling container)
@@ -219,41 +206,24 @@ function HazoChatMessagesInner({
     const scroll_viewport = container_ref.current?.closest('[data-radix-scroll-area-viewport]') as HTMLElement | null;
     const root = scroll_viewport || null;
 
-    console.log('[HazoChatMessages] ScrollArea viewport found:', {
-      has_viewport: !!scroll_viewport,
-      viewport_tag: scroll_viewport?.tagName,
-      container_ref_set: !!container_ref.current,
-    });
-
     // Create intersection observer for each unread message
     const observers: IntersectionObserver[] = [];
 
     // Use a small delay to ensure refs are set after render
     const timeout_id = setTimeout(() => {
-      console.log('[HazoChatMessages] Setting up observers for', unread_messages.length, 'unread messages');
-      
       unread_messages.forEach((message) => {
         const element = message_refs.current.get(message.id);
         if (!element) {
-          console.warn('[HazoChatMessages] Element not found for message:', message.id);
           return;
         }
-
-        console.log('[HazoChatMessages] Creating observer for message:', message.id);
 
         const observer = new IntersectionObserver(
           (entries) => {
             entries.forEach((entry) => {
-              console.log('[HazoChatMessages] Observer callback for', message.id, ':', {
-                isIntersecting: entry.isIntersecting,
-                intersectionRatio: entry.intersectionRatio,
-              });
-              
               if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
                 // Message is at least 50% visible, mark as read
                 if (!marked_as_read_ref.current.has(message.id)) {
                   marked_as_read_ref.current.add(message.id);
-                  console.log('[HazoChatMessages] Marking message as read:', message.id);
                   on_mark_as_read(message.id);
                   observer.disconnect();
                 }
@@ -270,8 +240,6 @@ function HazoChatMessagesInner({
         observer.observe(element);
         observers.push(observer);
       });
-      
-      console.log('[HazoChatMessages] Total observers created:', observers.length);
     }, 100); // Small delay to ensure DOM refs are ready
 
     return () => {
