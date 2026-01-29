@@ -258,6 +258,8 @@ export interface HazoChatProps {
   polling_interval?: number;
   /** Number of messages per page for pagination */
   messages_per_page?: number;
+  /** Enable polling debug logs - default: false (reduces verbosity) */
+  log_polling?: boolean;
   /** Show sidebar toggle button (hamburger menu) - default: false */
   show_sidebar_toggle?: boolean;
   /** Show delete button on chat bubbles - default: true */

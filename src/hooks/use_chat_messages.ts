@@ -30,6 +30,7 @@ import {
   DEFAULT_REALTIME_MODE,
   DEFAULT_POLLING_INTERVAL,
   DEFAULT_MESSAGES_PER_PAGE,
+  DEFAULT_LOG_POLLING,
   MAX_RETRY_ATTEMPTS,
   RETRY_BASE_DELAY,
 } from '../lib/constants.js';
@@ -71,6 +72,8 @@ export interface UseChatMessagesParams {
   polling_interval?: number;
   /** Number of messages per page for pagination (default: 20) */
   messages_per_page?: number;
+  /** Enable polling debug logs - default: false (reduces verbosity) */
+  log_polling?: boolean;
 }
 
 // ============================================================================
@@ -132,6 +135,7 @@ export function useChatMessages({
   realtime_mode = DEFAULT_REALTIME_MODE,
   polling_interval = DEFAULT_POLLING_INTERVAL,
   messages_per_page = DEFAULT_MESSAGES_PER_PAGE,
+  log_polling = DEFAULT_LOG_POLLING,
 }: UseChatMessagesParams): UseChatMessagesReturn {
   // -------------------------------------------------------------------------
   // State
@@ -173,8 +177,9 @@ export function useChatMessages({
       realtime_mode,
       polling_interval,
       messages_per_page,
+      log_polling,
     }),
-    [chat_group_id, reference_id, reference_type, api_base_url, realtime_mode, polling_interval, messages_per_page]
+    [chat_group_id, reference_id, reference_type, api_base_url, realtime_mode, polling_interval, messages_per_page, log_polling]
   );
 
   // -------------------------------------------------------------------------
@@ -583,8 +588,8 @@ export function useChatMessages({
 
     // Only start polling if mode is 'polling' and we have a chat group
     if (config.realtime_mode === 'polling' && config.chat_group_id && current_user_id) {
-      // Log once when polling starts
-      if (!has_logged_polling_start_ref.current) {
+      // Log once when polling starts (only if log_polling is enabled)
+      if (config.log_polling && !has_logged_polling_start_ref.current) {
         logger.debug('[useChatMessages] Polling enabled', {
           interval: config.polling_interval,
           chat_group_id: config.chat_group_id,

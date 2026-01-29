@@ -36,6 +36,9 @@ export const DEFAULT_ALLOWED_TYPES = [
 /** Default timezone */
 export const DEFAULT_TIMEZONE = 'GMT+10';
 
+/** Default log polling flag - set to false to reduce verbosity */
+export const DEFAULT_LOG_POLLING = false;
+
 // ============================================================================
 // MIME Type Mappings
 // ============================================================================

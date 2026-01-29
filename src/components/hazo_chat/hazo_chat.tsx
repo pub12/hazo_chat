@@ -25,7 +25,8 @@ import {
   DEFAULT_TIMEZONE,
   DEFAULT_REALTIME_MODE,
   DEFAULT_POLLING_INTERVAL,
-  DEFAULT_MESSAGES_PER_PAGE
+  DEFAULT_MESSAGES_PER_PAGE,
+  DEFAULT_LOG_POLLING
 } from '../../lib/constants.js';
 import type { RealtimeMode } from '../../types/index.js';
 
@@ -62,6 +63,7 @@ interface HazoChatInnerProps {
   realtime_mode?: RealtimeMode;
   polling_interval?: number;
   messages_per_page?: number;
+  log_polling?: boolean;
   show_sidebar_toggle?: boolean;
   show_delete_button?: boolean;
   bubble_radius?: 'default' | 'full';
@@ -82,6 +84,7 @@ function HazoChatInner({
   realtime_mode = DEFAULT_REALTIME_MODE,
   polling_interval = DEFAULT_POLLING_INTERVAL,
   messages_per_page = DEFAULT_MESSAGES_PER_PAGE,
+  log_polling = DEFAULT_LOG_POLLING,
   show_sidebar_toggle = false,
   show_delete_button = true,
   bubble_radius = 'default',
@@ -126,7 +129,8 @@ function HazoChatInner({
     api_base_url,
     realtime_mode,
     polling_interval,
-    messages_per_page
+    messages_per_page,
+    log_polling
   });
 
   // -------------------------------------------------------------------------
@@ -503,6 +507,7 @@ export function HazoChat(props: HazoChatProps) {
     realtime_mode,
     polling_interval,
     messages_per_page,
+    log_polling,
     show_sidebar_toggle,
     show_delete_button,
     bubble_radius,
@@ -540,6 +545,7 @@ export function HazoChat(props: HazoChatProps) {
           realtime_mode={realtime_mode}
           polling_interval={polling_interval}
           messages_per_page={messages_per_page}
+          log_polling={log_polling}
           show_sidebar_toggle={show_sidebar_toggle}
           show_delete_button={show_delete_button}
           bubble_radius={bubble_radius}

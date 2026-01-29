@@ -184,6 +184,7 @@ The component expects these endpoints (use handler factories):
 - Backoff: `interval * 2^retryCount`, capped at 30s
 - Profile cache with TTL (30 min) and max size (200 entries)
 - Transport abstraction (`RealtimeTransport` interface) ready for WebSocket/SSE
+- **Logging Control (v4.0.12)**: Set `log_polling: false` (default) to reduce console verbosity. When enabled (`log_polling: true`), logs a single debug message when polling starts. Error logs are always shown regardless of this setting.
 
 ## Dependencies
 
@@ -206,11 +207,13 @@ The component expects these endpoints (use handler factories):
 - `chat_group_id` (string, required) - **CHANGED from `receiver_user_id`**
 - `logger` (ClientLogger, required) - **NEW in v4.0** - Logger instance from hazo_logs/ui
 - `read_only` (boolean, optional, default: false) - **NEW in v4.0.4** - When true, hides chat input for read-only viewing
+- `log_polling` (boolean, optional, default: false) - **NEW in v4.0.12** - When true, enables debug logs for polling activity (reduces verbosity when false)
 - `reference_id`, `reference_type` (unchanged)
 - All other props remain the same
 
 **useChatMessages hook:**
 - `chat_group_id` (string, required) - **CHANGED from `receiver_user_id`**
+- `log_polling` (boolean, optional, default: false) - **NEW in v4.0.12** - When true, enables debug logs for polling activity
 - All other params remain the same
 
 **Type Changes (v3.0):**

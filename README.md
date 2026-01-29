@@ -759,6 +759,7 @@ export async function getUnreadCounts(receiver_user_id: string) {
 | `realtime_mode` | `'polling' \| 'manual'` | ❌ | `'polling'` | Real-time update mode: `'polling'` (automatic) or `'manual'` (refresh only) |
 | `polling_interval` | `number` | ❌ | `5000` | Polling interval in ms (only used when `realtime_mode = 'polling'`) |
 | `messages_per_page` | `number` | ❌ | `20` | Number of messages per page for pagination |
+| `log_polling` | `boolean` | ❌ | `false` | Enable polling debug logs (set to `true` to see polling activity in console) |
 | `additional_references` | `ReferenceItem[]` | ❌ | `[]` | Pre-loaded document references |
 | `timezone` | `string` | ❌ | `'GMT+10'` | Timezone for timestamps |
 | `title` | `string` | ❌ | - | Chat header title |
@@ -784,6 +785,7 @@ const logger = createClientLogger({ packageName: 'hazo_chat' });
   api_base_url="/api/hazo_chat"
   realtime_mode="polling"        // or "manual" for refresh-only updates
   polling_interval={5000}         // only used when realtime_mode = "polling"
+  log_polling={false}             // set to true to see polling debug logs (default: false)
   timezone="Australia/Sydney"
   title="Project Discussion"
   subtitle="Design Review"
@@ -1028,6 +1030,7 @@ const {
   realtime_mode: 'polling',   // Optional: 'polling' (automatic) or 'manual' (refresh only), default: 'polling'
   polling_interval: 5000,      // Optional, default: 5000ms (only used when realtime_mode = 'polling')
   messages_per_page: 20,       // Optional, default: 20
+  log_polling: false,          // Optional, default: false (set to true to see polling debug logs)
 });
 ```
 
@@ -1380,6 +1383,9 @@ polling_interval = 5000
 
 # Messages to load per page
 messages_per_page = 20
+
+# Enable polling debug logs (default: false to reduce console verbosity)
+log_polling = false
 
 [uploads]
 # Maximum file size in MB
