@@ -2,6 +2,8 @@
 
 A full-featured React chat component library for group-based communication with document sharing, file attachments, and real-time messaging capabilities.
 
+**Version 4.0.12** - Added `log_polling` configuration option (default: `false`) to suppress routine polling debug logs and reduce console verbosity. Error logs are always shown regardless of this setting.
+
 **Version 4.0.11** - Further reduced polling log verbosity: per-request logs now at debug level to eliminate noise during normal operation.
 
 **Version 4.0.8** - Fixed excessive API calls caused by polling callback instability and concurrent initial load requests.
