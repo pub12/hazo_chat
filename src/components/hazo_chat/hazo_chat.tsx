@@ -13,7 +13,8 @@
 'use client';
 
 import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
-import { IoChevronDown, IoChevronUp, IoChevronBack, IoChevronForward } from 'react-icons/io5';
+import { createPortal } from 'react-dom';
+import { IoChevronDown, IoChevronUp, IoChevronBack, IoChevronForward, IoClose } from 'react-icons/io5';
 import { cn } from '../../lib/utils.js';
 import type {
   HazoChatProps,
@@ -68,6 +69,10 @@ interface HazoChatInnerProps {
   show_delete_button?: boolean;
   bubble_radius?: 'default' | 'full';
   read_only?: boolean;
+  hide_references?: boolean;
+  hide_preview?: boolean;
+  display_mode?: 'embedded' | 'side_panel' | 'overlay';
+  container_element?: HTMLElement | null;
 }
 
 function HazoChatInner({
@@ -88,7 +93,11 @@ function HazoChatInner({
   show_sidebar_toggle = false,
   show_delete_button = true,
   bubble_radius = 'default',
-  read_only = false
+  read_only = false,
+  hide_references = false,
+  hide_preview = false,
+  display_mode = 'embedded',
+  container_element = null
 }: HazoChatInnerProps) {
   // Get context
   const {
@@ -298,67 +307,116 @@ function HazoChatInner({
   );
 
   // -------------------------------------------------------------------------
-  // Render
+  // Handle ESC key for overlay/side_panel modes
   // -------------------------------------------------------------------------
-  return (
+  useEffect(() => {
+    if (display_mode === 'overlay' || display_mode === 'side_panel') {
+      const handle_escape = (e: KeyboardEvent) => {
+        if (e.key === 'Escape' && on_close) {
+          on_close();
+        }
+      };
+      window.addEventListener('keydown', handle_escape);
+      return () => window.removeEventListener('keydown', handle_escape);
+    }
+  }, [display_mode, on_close]);
+
+  // -------------------------------------------------------------------------
+  // Render chat content
+  // -------------------------------------------------------------------------
+  const chat_content = (
     <div
       className={cn(
         'cls_hazo_chat',
         'flex flex-col h-full w-full',
         'bg-background rounded-lg border overflow-hidden',
+        // Display mode specific styles
+        display_mode === 'side_panel' && [
+          'fixed right-0 top-0 z-50',
+          'h-screen w-[400px] max-w-[90vw]',
+          'rounded-none border-l shadow-2xl',
+          'animate-in slide-in-from-right duration-300'
+        ],
+        display_mode === 'overlay' && [
+          'fixed inset-4 z-50',
+          'max-w-4xl max-h-[90vh]',
+          'm-auto',
+          'shadow-2xl',
+          'animate-in fade-in zoom-in-95 duration-200'
+        ],
         className
       )}
     >
       {/* Row 1: Header (title area) */}
-      <HazoChatHeader
-        title={title}
-        subtitle={subtitle}
-        on_close={on_close}
-        on_refresh={refresh_messages}
-        is_refreshing={is_loading_messages}
-        on_toggle_sidebar={toggle_sidebar}
-        is_sidebar_open={is_sidebar_open}
-        show_sidebar_toggle={show_sidebar_toggle}
-      />
+      <div className="relative">
+        <HazoChatHeader
+          title={title}
+          subtitle={subtitle}
+          on_close={on_close}
+          on_refresh={refresh_messages}
+          is_refreshing={is_loading_messages}
+          on_toggle_sidebar={toggle_sidebar}
+          is_sidebar_open={is_sidebar_open}
+          show_sidebar_toggle={show_sidebar_toggle}
+        />
+        {/* Close button for overlay/side_panel modes */}
+        {(display_mode === 'overlay' || display_mode === 'side_panel') && on_close && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={on_close}
+            className={cn(
+              'absolute top-2 right-2 z-10',
+              'w-8 h-8 rounded-full',
+              'hover:bg-destructive/10 hover:text-destructive'
+            )}
+            aria-label="Close chat"
+          >
+            <IoClose className="h-5 w-5" />
+          </Button>
+        )}
+      </div>
 
       {/* Row 2: Reference area (full width) - collapsible */}
-      <div className={cn(
-        'cls_references_row border-b bg-muted/30 transition-all duration-300 ease-in-out overflow-hidden',
-        is_references_expanded ? 'max-h-96' : 'max-h-8'
-      )}>
-        <div className="cls_references_container px-3 py-2">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              set_is_references_expanded((prev) => !prev);
-            }}
-            className="cls_references_header flex items-center justify-between w-full gap-2 mb-1.5 hover:bg-muted/50 rounded px-1 -mx-1 transition-colors cursor-pointer"
-            aria-label={is_references_expanded ? 'Collapse references' : 'Expand references'}
-            aria-expanded={is_references_expanded}
-          >
-            <h3 className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
-              References
-            </h3>
-            {is_references_expanded ? (
-              <IoChevronUp className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-            ) : (
-              <IoChevronDown className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+      {!hide_references && (
+        <div className={cn(
+          'cls_references_row border-b bg-muted/30 transition-all duration-300 ease-in-out overflow-hidden',
+          is_references_expanded ? 'max-h-96' : 'max-h-8'
+        )}>
+          <div className="cls_references_container px-3 py-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                set_is_references_expanded((prev) => !prev);
+              }}
+              className="cls_references_header flex items-center justify-between w-full gap-2 mb-1.5 hover:bg-muted/50 rounded px-1 -mx-1 transition-colors cursor-pointer"
+              aria-label={is_references_expanded ? 'Collapse references' : 'Expand references'}
+              aria-expanded={is_references_expanded}
+            >
+              <h3 className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
+                References
+              </h3>
+              {is_references_expanded ? (
+                <IoChevronUp className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+              ) : (
+                <IoChevronDown className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+              )}
+            </button>
+            {is_references_expanded && (
+              <div className="cls_references_content">
+                <HazoChatReferenceList
+                  references={references}
+                  selected_reference_id={selected_reference?.id}
+                  on_select={handle_reference_select}
+                  className="flex-wrap"
+                />
+              </div>
             )}
-          </button>
-          {is_references_expanded && (
-            <div className="cls_references_content">
-              <HazoChatReferenceList
-                references={references}
-                selected_reference_id={selected_reference?.id}
-                on_select={handle_reference_select}
-                className="flex-wrap"
-              />
-            </div>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Row 3: Two columns (doc preview | chat history) */}
       <div 
@@ -441,6 +499,7 @@ function HazoChatInner({
             highlighted_message_id={highlighted_message_id || undefined}
             show_delete_button={show_delete_button}
             bubble_radius={bubble_radius}
+            hide_preview={hide_preview}
           />
         </div>
       </div>
@@ -474,6 +533,36 @@ function HazoChatInner({
         </div>
       )}
     </div>
+  );
+
+  // -------------------------------------------------------------------------
+  // Render with Portal for overlay/side_panel modes
+  // -------------------------------------------------------------------------
+  if (display_mode === 'embedded') {
+    return chat_content;
+  }
+
+  // For overlay and side_panel modes, use Portal
+  const portal_target = container_element || (typeof document !== 'undefined' ? document.body : null);
+
+  if (!portal_target) {
+    // Fallback to embedded if no portal target available (SSR)
+    return chat_content;
+  }
+
+  return createPortal(
+    <>
+      {/* Backdrop for overlay mode */}
+      {display_mode === 'overlay' && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 animate-in fade-in duration-200"
+          onClick={on_close}
+          aria-label="Close overlay"
+        />
+      )}
+      {chat_content}
+    </>,
+    portal_target
   );
 }
 
@@ -512,6 +601,10 @@ export function HazoChat(props: HazoChatProps) {
     show_delete_button,
     bubble_radius,
     read_only,
+    hide_references,
+    hide_preview,
+    display_mode,
+    container_element,
     className
   } = props;
 
@@ -550,6 +643,10 @@ export function HazoChat(props: HazoChatProps) {
           show_delete_button={show_delete_button}
           bubble_radius={bubble_radius}
           read_only={read_only}
+          hide_references={hide_references}
+          hide_preview={hide_preview}
+          display_mode={display_mode}
+          container_element={container_element}
           className={className}
         />
       </HazoChatProvider>

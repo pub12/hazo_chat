@@ -5,6 +5,32 @@ All notable changes to hazo_chat will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.0] - 2026-02-01
+
+### Added
+- `hide_references` prop to HazoChat component - when set to `true`, hides the references section at the top of chat
+  - Default is `false` (references section visible)
+  - Use cases: cleaner interface, mobile views, minimal chat layouts
+- `hide_preview` prop to HazoChat component - when set to `true`, hides attachment previews in message bubbles
+  - Default is `false` (attachment icons visible)
+  - Use cases: compact layouts, mobile views, saving space
+- `display_mode` prop to HazoChat component - controls how chat is rendered
+  - Values: `'embedded'` (default, inline), `'side_panel'` (fixed right panel), `'overlay'` (modal)
+  - Side panel and overlay modes use React Portal for rendering
+  - Includes close button, ESC key support, and backdrop click (overlay only)
+- `container_element` prop to HazoChat component - custom container for portal rendering
+  - Used with `side_panel` and `overlay` display modes
+  - Defaults to `document.body`
+- Portal support with `react-dom` for side panel and overlay modes
+- Automatic ESC key handling for overlay and side panel modes
+- Close button in header for overlay and side panel modes
+- Semi-transparent backdrop for overlay mode
+
+### Changed
+- Updated TypeScript types with new `ChatDisplayMode` type
+- Enhanced `ChatBubbleProps`, `HazoChatMessagesProps`, and `HazoChatProps` interfaces
+- Updated memoization logic in `HazoChatMessages` to include `hide_preview`
+
 ## [4.0.4] - 2026-01-08
 
 ### Added

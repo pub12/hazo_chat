@@ -34,6 +34,7 @@ interface MemoizedChatBubbleProps {
   is_highlighted: boolean;
   show_delete_button: boolean;
   bubble_radius: 'default' | 'full';
+  hide_preview: boolean;
 }
 
 const MemoizedChatBubble = memo(
@@ -46,6 +47,7 @@ const MemoizedChatBubble = memo(
     is_highlighted,
     show_delete_button,
     bubble_radius,
+    hide_preview,
   }: MemoizedChatBubbleProps) {
     const is_sender = message.sender_user_id === current_user_id;
 
@@ -60,6 +62,7 @@ const MemoizedChatBubble = memo(
         is_highlighted={is_highlighted}
         show_delete_button={show_delete_button}
         bubble_radius={bubble_radius}
+        hide_preview={hide_preview}
       />
     );
   },
@@ -72,7 +75,8 @@ const MemoizedChatBubble = memo(
       prevProps.message.send_status === nextProps.message.send_status &&
       prevProps.is_highlighted === nextProps.is_highlighted &&
       prevProps.show_delete_button === nextProps.show_delete_button &&
-      prevProps.bubble_radius === nextProps.bubble_radius
+      prevProps.bubble_radius === nextProps.bubble_radius &&
+      prevProps.hide_preview === nextProps.hide_preview
     );
   }
 );
@@ -94,6 +98,7 @@ function HazoChatMessagesInner({
   highlighted_message_id,
   show_delete_button = true,
   bubble_radius = 'default',
+  hide_preview = false,
   className
 }: HazoChatMessagesProps) {
   const container_ref = useRef<HTMLDivElement>(null);
@@ -340,6 +345,7 @@ function HazoChatMessagesInner({
               is_highlighted={highlighted_message_id === message.id}
               show_delete_button={show_delete_button}
               bubble_radius={bubble_radius}
+              hide_preview={hide_preview}
             />
           </div>
         ))}
@@ -357,6 +363,7 @@ export const HazoChatMessages = memo(HazoChatMessagesInner, (prevProps, nextProp
   if (prevProps.highlighted_message_id !== nextProps.highlighted_message_id) return false;
   if (prevProps.show_delete_button !== nextProps.show_delete_button) return false;
   if (prevProps.bubble_radius !== nextProps.bubble_radius) return false;
+  if (prevProps.hide_preview !== nextProps.hide_preview) return false;
 
   // Check if any message has changed (by comparing key fields)
   for (let i = 0; i < prevProps.messages.length; i++) {

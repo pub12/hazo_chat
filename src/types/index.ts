@@ -223,6 +223,14 @@ export interface FileValidationResult {
 // ============================================================================
 
 /**
+ * Chat display mode
+ * - 'embedded': Inline within parent container (default)
+ * - 'side_panel': Fixed panel on right side of viewport
+ * - 'overlay': Modal overlay centered on page
+ */
+export type ChatDisplayMode = 'embedded' | 'side_panel' | 'overlay';
+
+/**
  * Main HazoChat component props
  *
  * This component uses API calls internally - no database adapters needed.
@@ -268,6 +276,14 @@ export interface HazoChatProps {
   bubble_radius?: 'default' | 'full';
   /** Read-only mode - hides chat input when true (default: false) */
   read_only?: boolean;
+  /** When true, hides the references section in chat - default: false */
+  hide_references?: boolean;
+  /** When true, hides message preview/attachment preview in bubbles - default: false */
+  hide_preview?: boolean;
+  /** Chat display mode - controls how chat is rendered - default: 'embedded' */
+  display_mode?: ChatDisplayMode;
+  /** Container element for portal rendering (used with side_panel/overlay modes) */
+  container_element?: HTMLElement | null;
   /** Additional CSS classes */
   className?: string;
 }
@@ -334,6 +350,8 @@ export interface HazoChatMessagesProps {
   show_delete_button?: boolean;
   /** Bubble border radius style - default: 'default' */
   bubble_radius?: 'default' | 'full';
+  /** When true, hides attachment preview in bubbles - default: false */
+  hide_preview?: boolean;
   className?: string;
 }
 
@@ -374,6 +392,8 @@ export interface ChatBubbleProps {
   show_delete_button?: boolean;
   /** Bubble border radius style - default: 'default' */
   bubble_radius?: 'default' | 'full';
+  /** When true, hides attachment preview in bubble - default: false */
+  hide_preview?: boolean;
   className?: string;
 }
 

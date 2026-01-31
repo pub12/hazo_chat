@@ -120,6 +120,7 @@ export function ChatBubble({
   is_highlighted = false,
   show_delete_button = true,
   bubble_radius = 'default',
+  hide_preview = false,
   className
 }: ChatBubbleProps) {
   const [show_delete_confirm, set_show_delete_confirm] = useState(false);
@@ -263,7 +264,7 @@ export function ChatBubble({
           </p>
 
           {/* Reference attachments */}
-          {has_references && !is_deleted && (
+          {!hide_preview && has_references && !is_deleted && (
             <div className="cls_bubble_references flex flex-wrap gap-1 mt-2 pt-2 border-t border-current/10">
               {message.reference_list?.map((ref) => (
                 <Button

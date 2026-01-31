@@ -2,6 +2,8 @@
 
 A full-featured React chat component library for group-based communication with document sharing, file attachments, and real-time messaging capabilities.
 
+**Version 5.0.0** - Added chat customization props: `hide_references`, `hide_preview`, `display_mode` ('embedded', 'side_panel', 'overlay'), and `container_element` for flexible rendering modes.
+
 **Version 4.0.12** - Added `log_polling` configuration option (default: `false`) to suppress routine polling debug logs and reduce console verbosity. Error logs are always shown regardless of this setting.
 
 **Version 4.0.11** - Further reduced polling log verbosity: per-request logs now at debug level to eliminate noise during normal operation.
@@ -57,46 +59,7 @@ npm install hazo_chat hazo_connect hazo_logs next
 
 ## UI Requirements
 
-hazo_chat requires the following UI setup to match the design standards:
-
-### Required UI Dependencies
-
-Install these packages in your consuming project:
-
-```bash
-npm install sonner @radix-ui/react-alert-dialog
-```
-
-### Required UI Components (shadcn/ui style)
-
-The following components must be available in your project at `@/components/ui/`:
-
-- `AlertDialog` - For user acknowledgment dialogs (must be created by consuming project)
-- `Button` - Included in hazo_chat package
-- `Input` - Included in hazo_chat package
-- All other components are included in hazo_chat package
-
-**Note:** The `AlertDialog` component is not included in the hazo_chat package. You must create it using shadcn/ui Alert Dialog component. See `test-app/src/components/ui/alert-dialog.tsx` for a reference implementation.
-
-### Required Global Providers
-
-Add Sonner Toaster to your root layout:
-
-```tsx
-// app/layout.tsx
-import { Toaster } from 'sonner';
-
-export default function RootLayout({ children }) {
-  return (
-    <html>
-      <body>
-        {children}
-        <Toaster position="top-right" richColors />
-      </body>
-    </html>
-  );
-}
-```
+hazo_chat is a self-contained component library that includes all necessary UI components. No external UI dependencies are required.
 
 ### Required Tailwind Configuration
 
@@ -474,11 +437,15 @@ The component communicates via API calls. Create the required endpoints:
 // app/api/hazo_chat/messages/route.ts
 import { createMessagesHandler } from 'hazo_chat/api';
 import { getHazoConnectSingleton } from 'hazo_connect/nextjs/setup';
+import { createLogger } from 'hazo_logs';
 
 export const dynamic = 'force-dynamic';
 
+const logger = createLogger('hazo_chat');
+
 const { GET, POST } = createMessagesHandler({
-  getHazoConnect: () => getHazoConnectSingleton()
+  getHazoConnect: () => getHazoConnectSingleton(),
+  getLogger: () => logger
 });
 
 export { GET, POST };
@@ -534,11 +501,15 @@ hazo_chat requires these API endpoints:
 // app/api/hazo_chat/messages/route.ts
 import { createMessagesHandler } from 'hazo_chat/api';
 import { getHazoConnectSingleton } from 'hazo_connect/nextjs/setup';
+import { createLogger } from 'hazo_logs';
 
 export const dynamic = 'force-dynamic';
 
+const logger = createLogger('hazo_chat');
+
 const { GET, POST } = createMessagesHandler({
   getHazoConnect: () => getHazoConnectSingleton(),
+  getLogger: () => logger,
   // Optional: custom authentication
   getUserIdFromRequest: async (request) => {
     // Return user ID from your auth system
@@ -554,11 +525,15 @@ export { GET, POST };
 import { NextRequest } from 'next/server';
 import { createMarkAsReadHandler } from 'hazo_chat/api';
 import { getHazoConnectSingleton } from 'hazo_connect/nextjs/setup';
+import { createLogger } from 'hazo_logs';
 
 export const dynamic = 'force-dynamic';
 
+const logger = createLogger('hazo_chat');
+
 const { PATCH } = createMarkAsReadHandler({
   getHazoConnect: () => getHazoConnectSingleton(),
+  getLogger: () => logger,
   // Optional: custom authentication
   getUserIdFromRequest: async (request) => {
     // Return user ID from your auth system
@@ -598,10 +573,14 @@ Get unread message counts grouped by chat_group_id for a user.
 ```typescript
 import { createUnreadCountFunction } from 'hazo_chat/api';
 import { getHazoConnectSingleton } from 'hazo_connect/nextjs/setup';
+import { createLogger } from 'hazo_logs';
+
+const logger = createLogger('hazo_chat');
 
 // Create the function using the factory
 const hazo_chat_get_unread_count = createUnreadCountFunction({
-  getHazoConnect: () => getHazoConnectSingleton()
+  getHazoConnect: () => getHazoConnectSingleton(),
+  getLogger: () => logger
 });
 
 // Use the function
@@ -640,11 +619,15 @@ interface UnreadCountResult {
 import { createUnreadCountFunction } from 'hazo_chat/api';
 import { getHazoConnectSingleton } from 'hazo_connect/nextjs/setup';
 import { NextRequest, NextResponse } from 'next/server';
+import { createLogger } from 'hazo_logs';
 
 export const dynamic = 'force-dynamic';
 
+const logger = createLogger('hazo_chat');
+
 const hazo_chat_get_unread_count = createUnreadCountFunction({
-  getHazoConnect: () => getHazoConnectSingleton()
+  getHazoConnect: () => getHazoConnectSingleton(),
+  getLogger: () => logger
 });
 
 export async function GET(request: NextRequest) {
@@ -700,9 +683,13 @@ export async function GET(request: NextRequest) {
 // app/chat/unread-badge.tsx
 import { createUnreadCountFunction } from 'hazo_chat/api';
 import { getHazoConnectSingleton } from 'hazo_connect/nextjs/setup';
+import { createLogger } from 'hazo_logs';
+
+const logger = createLogger('hazo_chat');
 
 const hazo_chat_get_unread_count = createUnreadCountFunction({
-  getHazoConnect: () => getHazoConnectSingleton()
+  getHazoConnect: () => getHazoConnectSingleton(),
+  getLogger: () => logger
 });
 
 export default async function UnreadBadge({ 
@@ -770,6 +757,10 @@ export async function getUnreadCounts(receiver_user_id: string) {
 | `show_sidebar_toggle` | `boolean` | ❌ | `false` | Show sidebar toggle button (hamburger menu) |
 | `show_delete_button` | `boolean` | ❌ | `true` | Show delete button on chat bubbles |
 | `bubble_radius` | `'default' \| 'full'` | ❌ | `'default'` | Bubble border radius style: `'default'` (rounded with tail) or `'full'` (fully round) |
+| `hide_references` | `boolean` | ❌ | `false` | When true, hides the references section at the top of chat (NEW in v5.0.0) |
+| `hide_preview` | `boolean` | ❌ | `false` | When true, hides attachment previews in message bubbles (NEW in v5.0.0) |
+| `display_mode` | `'embedded' \| 'side_panel' \| 'overlay'` | ❌ | `'embedded'` | Controls how chat is rendered: `'embedded'` (inline), `'side_panel'` (fixed right panel), or `'overlay'` (modal) (NEW in v5.0.0) |
+| `container_element` | `HTMLElement \| null` | ❌ | `null` | Custom container for portal rendering (used with `side_panel`/`overlay` modes) (NEW in v5.0.0) |
 | `className` | `string` | ❌ | - | Additional CSS classes |
 
 ### Example with All Props
@@ -844,6 +835,115 @@ To hide the delete button on chat bubbles:
   chat_group_id="group-123"
   logger={logger}
   show_delete_button={false}  // Hide delete button
+/>
+```
+
+#### Hide References Section (NEW in v5.0.0)
+
+To hide the references section at the top of the chat (documents and links attached to messages):
+
+```tsx
+<HazoChat
+  chat_group_id="group-123"
+  logger={logger}
+  hide_references={true}  // Hides references section
+/>
+```
+
+Use cases:
+- Cleaner interface when attachments are not needed
+- Mobile views with limited space
+- Tax forms or minimal chat interfaces
+
+#### Hide Attachment Previews (NEW in v5.0.0)
+
+To hide attachment previews in message bubbles:
+
+```tsx
+<HazoChat
+  chat_group_id="group-123"
+  logger={logger}
+  hide_preview={true}  // Hides attachment icons in bubbles
+/>
+```
+
+Use cases:
+- Compact chat layouts
+- Mobile views to save space
+- When document links should not be clickable from messages
+
+#### Display Modes (NEW in v5.0.0)
+
+The `display_mode` prop controls how the chat is rendered:
+
+**Embedded Mode (Default)**
+
+Chat renders inline within its parent container:
+
+```tsx
+<HazoChat
+  chat_group_id="group-123"
+  logger={logger}
+  display_mode="embedded"  // Default - inline rendering
+/>
+```
+
+**Side Panel Mode**
+
+Chat appears as a fixed panel on the right side of the viewport:
+
+```tsx
+<HazoChat
+  chat_group_id="group-123"
+  logger={logger}
+  display_mode="side_panel"
+  on_close={() => setShowChat(false)}  // Required for close button
+/>
+```
+
+Features:
+- Fixed position on right side
+- Slides in with animation
+- Close button in header
+- ESC key to close
+- Uses React Portal (renders at document.body)
+
+**Overlay Mode**
+
+Chat appears as a modal overlay centered on the page:
+
+```tsx
+<HazoChat
+  chat_group_id="group-123"
+  logger={logger}
+  display_mode="overlay"
+  on_close={() => setShowChat(false)}  // Required for close button
+/>
+```
+
+Features:
+- Semi-transparent backdrop
+- Centered modal
+- Close button in header
+- ESC key to close
+- Click backdrop to close
+- Uses React Portal (renders at document.body)
+
+**Custom Portal Container**
+
+Specify a custom container for portal rendering (useful with iframes or shadow DOM):
+
+```tsx
+const containerRef = useRef<HTMLDivElement>(null);
+
+<div ref={containerRef} />
+
+<HazoChat
+  chat_group_id="group-123"
+  logger={logger}
+  display_mode="overlay"
+  container_element={containerRef.current}
+  on_close={() => setShowChat(false)}
 />
 ```
 
