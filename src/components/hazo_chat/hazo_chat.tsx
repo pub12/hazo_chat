@@ -15,6 +15,8 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { IoChevronDown, IoChevronUp, IoChevronBack, IoChevronForward, IoClose } from 'react-icons/io5';
+import { createClientLogger } from 'hazo_logs/ui';
+import type { ClientLogger } from 'hazo_logs/ui';
 import { cn } from '../../lib/utils.js';
 import type {
   HazoChatProps,
@@ -30,6 +32,21 @@ import {
   DEFAULT_LOG_POLLING
 } from '../../lib/constants.js';
 import type { RealtimeMode } from '../../types/index.js';
+
+// ============================================================================
+// Default Logger (module-level, created once)
+// ============================================================================
+
+let default_logger: ClientLogger | null = null;
+
+function get_default_logger(): ClientLogger {
+  if (!default_logger) {
+    default_logger = createClientLogger({
+      packageName: 'hazo_chat',
+    });
+  }
+  return default_logger;
+}
 
 // Sub-components
 import { HazoChatProvider, useHazoChatContext } from './hazo_chat_context.js';
@@ -584,7 +601,7 @@ function HazoChatInner({
 export function HazoChat(props: HazoChatProps) {
   const {
     chat_group_id,
-    logger,
+    logger: provided_logger,
     reference_id,
     reference_type = 'chat',
     api_base_url = '/api/hazo_chat',
@@ -607,6 +624,9 @@ export function HazoChat(props: HazoChatProps) {
     container_element,
     className
   } = props;
+
+  // Use provided logger or fall back to default
+  const logger = provided_logger || get_default_logger();
 
   // Convert ReferenceItem[] to ChatReferenceItem[]
   const initial_refs: ChatReferenceItem[] = useMemo(

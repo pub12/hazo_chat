@@ -777,17 +777,41 @@ export async function GET(request: NextRequest) {
 'use client';
 
 import { HazoChat } from 'hazo_chat';
+
+// Simplest usage - logger is optional (v5.1+)
+export default function ChatPage() {
+  return (
+    <div className="h-screen">
+      <HazoChat
+        chat_group_id="group-uuid-here"
+        title="Chat"
+        subtitle="Direct Message"
+      />
+    </div>
+  );
+}
+```
+
+**Optional: Custom Logger for Debugging**
+
+```typescript
+'use client';
+
+import { HazoChat } from 'hazo_chat';
 import { createClientLogger } from 'hazo_logs/ui';
 
-// Create client logger (required in v4.0+)
-const logger = createClientLogger({ packageName: 'hazo_chat' });
+// Optional: Create custom logger for detailed debugging
+const logger = createClientLogger({
+  packageName: 'hazo_chat',
+  defaultLevel: 'debug'
+});
 
 export default function ChatPage() {
   return (
     <div className="h-screen">
       <HazoChat
         chat_group_id="group-uuid-here"
-        logger={logger}
+        logger={logger}  // Optional - omit to use default
         title="Chat"
         subtitle="Direct Message"
       />
@@ -802,15 +826,12 @@ export default function ChatPage() {
 'use client';
 
 import { HazoChat } from 'hazo_chat';
-import { createClientLogger } from 'hazo_logs/ui';
-
-const logger = createClientLogger({ packageName: 'hazo_chat' });
 
 export default function ChatPage() {
   return (
     <HazoChat
       chat_group_id="group-123"
-      logger={logger}
+      // logger is optional - omit to use default internal logger
       reference_id="project-456"
       reference_type="project_chat"
       api_base_url="/api/hazo_chat"

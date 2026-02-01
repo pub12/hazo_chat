@@ -240,10 +240,11 @@ export interface HazoChatProps {
   /** UUID of the chat group (required) */
   chat_group_id: string;
   /**
-   * Logger instance from hazo_logs/ui (required).
-   * Create using: createClientLogger({ packageName: 'hazo_chat' })
+   * Logger instance from hazo_logs/ui (optional).
+   * If not provided, uses a default internal logger.
+   * For custom logging behavior, create using: createClientLogger({ packageName: 'hazo_chat' })
    */
-  logger: ClientLogger;
+  logger?: ClientLogger;
   /** Main field reference ID for chat context grouping */
   reference_id?: string;
   /** Reference type for the main reference (default: 'chat') */

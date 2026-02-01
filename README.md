@@ -2,6 +2,8 @@
 
 A full-featured React chat component library for group-based communication with document sharing, file attachments, and real-time messaging capabilities.
 
+**Version 5.1.0** - Logger prop now optional! Simpler integration with zero-config default logger. No need to install hazo_logs or create logger instances for basic use cases.
+
 **Version 5.0.0** - Added chat customization props: `hide_references`, `hide_preview`, `display_mode` ('embedded', 'side_panel', 'overlay'), and `container_element` for flexible rendering modes.
 
 **Version 4.0.12** - Added `log_polling` configuration option (default: `false`) to suppress routine polling debug logs and reduce console verbosity. Error logs are always shown regardless of this setting.
@@ -457,17 +459,13 @@ export { GET, POST };
 'use client';
 
 import { HazoChat } from 'hazo_chat';
-import { createClientLogger } from 'hazo_logs/ui';
 
-// Create client logger (required in v4.0+)
-const logger = createClientLogger({ packageName: 'hazo_chat' });
-
+// Simplest usage - logger is optional (v5.1+)
 export default function ChatPage() {
   return (
     <div className="h-screen">
       <HazoChat
         chat_group_id="group-uuid"
-        logger={logger}
         reference_id="conversation-123"
         reference_type="support"
         title="Chat with Support"
@@ -478,7 +476,47 @@ export default function ChatPage() {
 }
 ```
 
-That's it! No need to pass database adapters or authentication services - everything works via API calls.
+That's it! No need to pass database adapters, authentication services, or even a logger - everything works via API calls with sensible defaults.
+
+### Logger Configuration (Optional)
+
+By default, HazoChat uses an internal logger with standard verbosity. For debugging or custom logging behavior, provide a custom logger:
+
+**Default Behavior (No Logger Provided):**
+- Uses internal logger with standard console output
+- All log levels enabled (error, warn, info, debug)
+- Suitable for both development and production use
+
+**Custom Logger (Advanced):**
+
+```tsx
+import { HazoChat } from 'hazo_chat';
+import { createClientLogger } from 'hazo_logs/ui';
+
+// Create custom logger with debug level for detailed logging
+const logger = createClientLogger({
+  packageName: 'hazo_chat',
+  defaultLevel: 'debug', // See all logs including debug
+});
+
+export default function DebugChatPage() {
+  return (
+    <div className="h-screen">
+      <HazoChat
+        chat_group_id="group-uuid"
+        logger={logger}  // Custom logger for detailed debugging
+        title="Chat with Support"
+      />
+    </div>
+  );
+}
+```
+
+**Logger Levels:**
+- `'debug'` - All messages (use for development)
+- `'info'` - Info, warnings, and errors
+- `'warn'` - Warnings and errors only (default)
+- `'error'` - Errors only
 
 ## API Routes Setup
 
@@ -740,7 +778,7 @@ export async function getUnreadCounts(receiver_user_id: string) {
 | Prop | Type | Required | Default | Description |
 |------|------|----------|---------|-------------|
 | `chat_group_id` | `string` | ✅ | - | UUID of the chat group (CHANGED from `receiver_user_id` in v3.0) |
-| `logger` | `ClientLogger` | ✅ | - | Logger instance from hazo_logs/ui (NEW in v4.0) |
+| `logger` | `ClientLogger` | ❌ | Internal logger | Logger instance from hazo_logs/ui (optional in v5.1+, required in v4.0-v5.0) |
 | `read_only` | `boolean` | ❌ | `false` | When true, hides chat input for view-only mode (NEW in v4.0.4) |
 | `reference_id` | `string` | ❌ | - | Reference ID for chat context grouping |
 | `reference_type` | `string` | ❌ | `'chat'` | Type of reference |
@@ -766,13 +804,16 @@ export async function getUnreadCounts(receiver_user_id: string) {
 ### Example with All Props
 
 ```tsx
+// Optional: Create custom logger for debugging
 import { createClientLogger } from 'hazo_logs/ui';
-
-const logger = createClientLogger({ packageName: 'hazo_chat' });
+const logger = createClientLogger({
+  packageName: 'hazo_chat',
+  defaultLevel: 'debug' // See all debug logs
+});
 
 <HazoChat
   chat_group_id="group-123"
-  logger={logger}
+  logger={logger}                 // Optional - omit to use default logger
   reference_id="project-456"
   reference_type="project_chat"
   api_base_url="/api/hazo_chat"
@@ -1496,6 +1537,87 @@ max_file_size_mb = 10
 # Allowed file extensions (comma-separated)
 allowed_types = pdf,png,jpg,jpeg,gif,txt,doc,docx
 ```
+
+## Migration from v5.0 to v5.1 (Logger Now Optional)
+
+**Version 5.1** makes the `logger` prop optional for easier integration. This is a **non-breaking change** - existing code continues to work.
+
+### What Changed
+
+| v5.0 | v5.1 |
+|------|------|
+| `logger` prop required | `logger` prop optional |
+| Must install `hazo_logs` and create logger | Can use default logger |
+| Manual logger setup for every usage | Zero-config for simple use cases |
+
+### Migration Guide
+
+**Good News:** The `logger` prop is now optional! You can remove logger setup code for simpler integration.
+
+**Before (v5.0):**
+```tsx
+import { HazoChat } from 'hazo_chat';
+import { createClientLogger } from 'hazo_logs/ui';
+
+// Required logger setup in v5.0
+const logger = createClientLogger({ packageName: 'hazo_chat' });
+
+export default function ChatPage() {
+  return (
+    <HazoChat
+      chat_group_id="group-123"
+      logger={logger}  // Required in v5.0
+    />
+  );
+}
+```
+
+**After (v5.1 - Simplest):**
+```tsx
+import { HazoChat } from 'hazo_chat';
+
+// No logger needed - uses default
+export default function ChatPage() {
+  return (
+    <HazoChat chat_group_id="group-123" />
+  );
+}
+```
+
+**After (v5.1 - Custom Logger):**
+```tsx
+import { HazoChat } from 'hazo_chat';
+import { createClientLogger } from 'hazo_logs/ui';
+
+// Optional: Keep custom logger for debugging
+const logger = createClientLogger({
+  packageName: 'hazo_chat',
+  defaultLevel: 'debug'
+});
+
+export default function ChatPage() {
+  return (
+    <HazoChat
+      chat_group_id="group-123"
+      logger={logger}  // Optional - omit to use default
+    />
+  );
+}
+```
+
+### Benefits
+
+- **Simpler integration**: Remove logger setup boilerplate for basic use cases
+- **Backward compatible**: Existing code with `logger` prop continues to work
+- **Flexible**: Custom logger still available when needed for debugging
+- **Zero-config**: Works out of the box without logger setup
+
+### No Breaking Changes
+
+v5.1 is fully backward compatible with v5.0:
+- Existing code that provides `logger` prop works unchanged
+- Default logger automatically used when `logger` is omitted
+- No schema changes, no API changes
 
 ## Migration from v3.0 to v3.1
 

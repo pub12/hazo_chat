@@ -5,6 +5,23 @@ All notable changes to hazo_chat will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.1.0] - 2026-02-01
+
+### Changed
+- **Logger prop now optional** - The `logger` prop is no longer required on HazoChat component. When not provided, HazoChat uses a default internal logger. This reduces integration friction for consumers who don't need custom logging behavior.
+
+### Benefits
+- Simpler integration for basic use cases - no need to install hazo_logs or create logger instances
+- Zero-config for simple use cases - just import and use HazoChat
+- Backward compatible - existing code that provides a logger continues to work without changes
+- Custom logger still supported for advanced debugging when needed
+
+### Migration Notes
+- **No breaking changes** - v5.1 is fully backward compatible with v5.0
+- Existing code with `logger` prop works unchanged
+- Can optionally remove logger setup code for simpler integration
+- See Migration Guide in README.md for examples
+
 ## [5.0.0] - 2026-02-01
 
 ### Added
