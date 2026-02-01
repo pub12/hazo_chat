@@ -2,6 +2,8 @@
 
 A full-featured React chat component library for group-based communication with document sharing, file attachments, and real-time messaging capabilities.
 
+**Version 5.2.0** - Added `hide_sidebar` prop to completely hide the document viewer sidebar for maximized chat area and simpler layouts.
+
 **Version 5.1.0** - Logger prop now optional! Simpler integration with zero-config default logger. No need to install hazo_logs or create logger instances for basic use cases.
 
 **Version 5.0.0** - Added chat customization props: `hide_references`, `hide_preview`, `display_mode` ('embedded', 'side_panel', 'overlay'), and `container_element` for flexible rendering modes.
@@ -160,6 +162,34 @@ The `hazo_chat` component library uses Tailwind CSS utility classes (e.g., `flex
 2. Extract all Tailwind utility classes used in the components
 3. Include them in your application's final CSS bundle
 4. Ensure the component styles are correctly applied at runtime
+
+### Tailwind v4 Setup (IMPORTANT)
+
+**If you're using Tailwind CSS v4**, the default content scanning will NOT include classes from this package in `node_modules/`. You MUST add a `@source` directive to enable Tailwind to scan this package's files.
+
+Add the following to your `globals.css` or main CSS file AFTER the tailwindcss import:
+
+```css
+@import "tailwindcss";
+
+/* Required: Enable Tailwind to scan hazo_chat package classes */
+@source "../node_modules/hazo_chat/dist";
+```
+
+**Why this is required:**
+- Tailwind v4 uses JIT compilation and only generates CSS for classes found in scanned files
+- By default, files in `node_modules/` are NOT scanned
+- Without the `@source` directive, Tailwind utility classes in hazo_chat will have no CSS generated
+- This causes invisible hover states, missing colors, broken layouts, etc.
+
+**Symptoms of missing @source:**
+- Hover states appear transparent (e.g., `hover:bg-muted/50`)
+- Text sizing has no effect (e.g., `text-sm`)
+- Rounded corners missing (e.g., `rounded-md`)
+- Colors appear as unstyled defaults
+
+**Testing:**
+Build your application and inspect the generated CSS. Search for classes like `hover:bg-muted` or `text-sm`. If they're not present, you need to add the `@source` directive.
 
 **Important:** Without this configuration, Tailwind classes used by hazo_chat components will not be compiled, causing styling issues such as:
 - Missing styles (components appear unstyled)
@@ -796,6 +826,7 @@ export async function getUnreadCounts(receiver_user_id: string) {
 | `show_delete_button` | `boolean` | ❌ | `true` | Show delete button on chat bubbles |
 | `bubble_radius` | `'default' \| 'full'` | ❌ | `'default'` | Bubble border radius style: `'default'` (rounded with tail) or `'full'` (fully round) |
 | `hide_references` | `boolean` | ❌ | `false` | When true, hides the references section at the top of chat (NEW in v5.0.0) |
+| `hide_sidebar` | `boolean` | ❌ | `false` | When true, hides the entire document viewer sidebar. References in messages will open in new tab (NEW in v5.2.0) |
 | `hide_preview` | `boolean` | ❌ | `false` | When true, hides attachment previews in message bubbles (NEW in v5.0.0) |
 | `display_mode` | `'embedded' \| 'side_panel' \| 'overlay'` | ❌ | `'embedded'` | Controls how chat is rendered: `'embedded'` (inline), `'side_panel'` (fixed right panel), or `'overlay'` (modal) (NEW in v5.0.0) |
 | `container_element` | `HTMLElement \| null` | ❌ | `null` | Custom container for portal rendering (used with `side_panel`/`overlay` modes) (NEW in v5.0.0) |
@@ -895,6 +926,54 @@ Use cases:
 - Cleaner interface when attachments are not needed
 - Mobile views with limited space
 - Tax forms or minimal chat interfaces
+
+#### Hide Document Viewer Sidebar (NEW in v5.2.0)
+
+To hide the entire document viewer sidebar (document preview panel on the left):
+
+```tsx
+<HazoChat
+  chat_group_id="group-123"
+  logger={logger}
+  hide_sidebar={true}  // Hides document viewer sidebar
+/>
+```
+
+When `hide_sidebar` is enabled:
+- The document viewer panel is completely hidden
+- The document viewer toggle button is hidden
+- Chat messages expand to full width
+- Document references in messages will open in a new tab instead of the preview panel
+
+Use cases:
+- Maximizing chat message area on small screens
+- Simple chat-only interfaces without document previews
+- When documents should always open externally
+- Embedded chat widgets with limited space
+
+**Combination example** - Hide references section but keep document viewer:
+
+```tsx
+<HazoChat
+  chat_group_id="group-123"
+  logger={logger}
+  hide_references={true}   // Hide references list
+  hide_sidebar={false}     // Keep document viewer (default)
+/>
+```
+
+**Combination example** - Show references but hide document viewer:
+
+```tsx
+<HazoChat
+  chat_group_id="group-123"
+  logger={logger}
+  hide_references={false}  // Show references list (default)
+  hide_sidebar={true}      // Hide document viewer
+/>
+```
+
+In this mode, users can still see the references list at the top, but clicking on them will open in a new tab instead of the sidebar preview.
 
 #### Hide Attachment Previews (NEW in v5.0.0)
 
@@ -1008,6 +1087,10 @@ To make all chat bubbles fully round (instead of the default style with a tail):
 | `show_sidebar_toggle` | `false` | `boolean` | Show/hide the hamburger menu button |
 | `show_delete_button` | `true` | `boolean` | Show/hide delete button on chat bubbles |
 | `bubble_radius` | `'default'` | `'default' \| 'full'` | Bubble border radius style |
+| `hide_references` | `false` | `boolean` | Hide references section at top |
+| `hide_sidebar` | `false` | `boolean` | Hide document viewer sidebar completely |
+| `hide_preview` | `false` | `boolean` | Hide attachment previews in message bubbles |
+| `display_mode` | `'embedded'` | `'embedded' \| 'side_panel' \| 'overlay'` | Chat rendering mode |
 
 ### Example: Full Customization
 

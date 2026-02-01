@@ -87,6 +87,7 @@ interface HazoChatInnerProps {
   bubble_radius?: 'default' | 'full';
   read_only?: boolean;
   hide_references?: boolean;
+  hide_sidebar?: boolean;
   hide_preview?: boolean;
   display_mode?: 'embedded' | 'side_panel' | 'overlay';
   container_element?: HTMLElement | null;
@@ -112,6 +113,7 @@ function HazoChatInner({
   bubble_radius = 'default',
   read_only = false,
   hide_references = false,
+  hide_sidebar = false,
   hide_preview = false,
   display_mode = 'embedded',
   container_element = null
@@ -302,17 +304,23 @@ function HazoChatInner({
   // -------------------------------------------------------------------------
   const handle_reference_select = useCallback(
     (reference: ChatReferenceItem) => {
+      // If sidebar is hidden, always open in new tab
+      if (hide_sidebar) {
+        window.open(reference.url, '_blank');
+        return;
+      }
+
       // Check container width - if narrow, open in new tab instead of showing preview
       if (main_content_ref.current) {
         const container_width = main_content_ref.current.offsetWidth;
-        
+
         if (container_width < NARROW_WIDTH_THRESHOLD) {
           // Open in new tab for narrow containers
           window.open(reference.url, '_blank');
           return;
         }
       }
-      
+
       // Normal behavior: select reference and show in preview
       select_reference(reference);
       // Expand document viewer when selecting a reference in wide containers
@@ -320,7 +328,7 @@ function HazoChatInner({
         set_is_document_viewer_expanded(true);
       }
     },
-    [select_reference, is_document_viewer_expanded]
+    [hide_sidebar, select_reference, is_document_viewer_expanded]
   );
 
   // -------------------------------------------------------------------------
@@ -436,32 +444,34 @@ function HazoChatInner({
       )}
 
       {/* Row 3: Two columns (doc preview | chat history) */}
-      <div 
+      <div
         ref={main_content_ref}
         className="cls_main_content flex flex-1 overflow-hidden relative h-full min-h-0"
       >
-        {/* Column 1: Document preview - collapsible */}
-        <div
-          className={cn(
-            'cls_doc_preview_column',
-            'border-r bg-muted/20',
-            'flex-shrink-0 flex flex-col',
-            'transition-all duration-300 ease-in-out overflow-hidden',
-            // Mobile: hidden by default, shown when sidebar is open
-            is_sidebar_open ? 'flex' : 'hidden md:flex',
-            // Collapse/expand based on state
-            is_document_viewer_expanded
-              ? 'w-[280px] md:w-[320px] lg:w-[380px]'
-              : 'w-0 border-r-0'
-          )}
-        >
-          {is_document_viewer_expanded && (
-            <HazoChatDocumentViewer reference={selected_reference || undefined} />
-          )}
-        </div>
+        {/* Column 1: Document preview - collapsible (hidden if hide_sidebar is true) */}
+        {!hide_sidebar && (
+          <div
+            className={cn(
+              'cls_doc_preview_column',
+              'border-r bg-muted/20',
+              'flex-shrink-0 flex flex-col',
+              'transition-all duration-300 ease-in-out overflow-hidden',
+              // Mobile: hidden by default, shown when sidebar is open
+              is_sidebar_open ? 'flex' : 'hidden md:flex',
+              // Collapse/expand based on state
+              is_document_viewer_expanded
+                ? 'w-[280px] md:w-[320px] lg:w-[380px]'
+                : 'w-0 border-r-0'
+            )}
+          >
+            {is_document_viewer_expanded && (
+              <HazoChatDocumentViewer reference={selected_reference || undefined} />
+            )}
+          </div>
+        )}
 
-        {/* Toggle button for document viewer - show on desktop, hide on mobile when sidebar closed */}
-        {(!is_sidebar_open || is_sidebar_open) && (
+        {/* Toggle button for document viewer - show on desktop, hide on mobile when sidebar closed (hidden if hide_sidebar is true) */}
+        {!hide_sidebar && (!is_sidebar_open || is_sidebar_open) && (
           <Button
             variant="outline"
             size="icon"
@@ -619,6 +629,7 @@ export function HazoChat(props: HazoChatProps) {
     bubble_radius,
     read_only,
     hide_references,
+    hide_sidebar,
     hide_preview,
     display_mode,
     container_element,
@@ -664,6 +675,7 @@ export function HazoChat(props: HazoChatProps) {
           bubble_radius={bubble_radius}
           read_only={read_only}
           hide_references={hide_references}
+          hide_sidebar={hide_sidebar}
           hide_preview={hide_preview}
           display_mode={display_mode}
           container_element={container_element}

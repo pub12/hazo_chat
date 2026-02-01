@@ -812,6 +812,11 @@ export default function HazoChatTestPage() {
   const [chat_key, set_chat_key] = useState<number>(0);
   const [test_files, set_test_files] = useState<ReferenceFile[]>([]);
 
+  // UI Customization toggles (v5.2.0)
+  const [hide_sidebar, set_hide_sidebar] = useState<boolean>(false);
+  const [hide_references, set_hide_references] = useState<boolean>(false);
+  const [hide_preview, set_hide_preview] = useState<boolean>(false);
+
   // Create client logger only on client-side to avoid SSR hydration issues
   const [hazo_chat_logger, set_hazo_chat_logger] = useState<ClientLogger>({
     error: async () => {},
@@ -954,6 +959,9 @@ export default function HazoChatTestPage() {
                         on_close={() => set_is_sheet_open(false)}
                         show_sidebar_toggle={false}
                         show_delete_button={true}
+                        hide_sidebar={hide_sidebar}
+                        hide_references={hide_references}
+                        hide_preview={hide_preview}
                       />
                     </div>
                   </SheetContent>
@@ -992,6 +1000,9 @@ export default function HazoChatTestPage() {
                       subtitle="Project Discussion"
                       show_sidebar_toggle={false}
                       show_delete_button={true}
+                      hide_sidebar={hide_sidebar}
+                      hide_references={hide_references}
+                      hide_preview={hide_preview}
                     />
                   </DialogContent>
                 </Dialog>
@@ -1072,6 +1083,51 @@ export default function HazoChatTestPage() {
           </Button>
         </div>
 
+        {/* UI Customization Toggles (v5.2.0 Test Controls) */}
+        <div className="cls_customization_toggles mb-6 p-4 bg-white dark:bg-slate-900 rounded-xl shadow-md border">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-3">
+            UI Customization (v5.2.0)
+          </h3>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              variant={hide_sidebar ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => set_hide_sidebar(!hide_sidebar)}
+              className="gap-2"
+              aria-label="Toggle hide sidebar"
+            >
+              <IoChevronBack className="h-4 w-4" />
+              {hide_sidebar ? 'Sidebar Hidden' : 'Show Sidebar'}
+            </Button>
+
+            <Button
+              variant={hide_references ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => set_hide_references(!hide_references)}
+              className="gap-2"
+              aria-label="Toggle hide references"
+            >
+              <IoDocumentAttachSharp className="h-4 w-4" />
+              {hide_references ? 'References Hidden' : 'Show References'}
+            </Button>
+
+            <Button
+              variant={hide_preview ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => set_hide_preview(!hide_preview)}
+              className="gap-2"
+              aria-label="Toggle hide preview"
+            >
+              <IoLinkSharp className="h-4 w-4" />
+              {hide_preview ? 'Previews Hidden' : 'Show Previews'}
+            </Button>
+
+            <span className="text-xs text-muted-foreground ml-2">
+              Toggle to test UI customization props
+            </span>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Chat Container - Embedded View */}
           <div className="lg:col-span-2">
@@ -1096,6 +1152,9 @@ export default function HazoChatTestPage() {
                 on_close={handle_close}
                 show_sidebar_toggle={true}
                 show_delete_button={true}
+                hide_sidebar={hide_sidebar}
+                hide_references={hide_references}
+                hide_preview={hide_preview}
               />
             </div>
           </div>

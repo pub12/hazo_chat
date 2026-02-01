@@ -279,6 +279,8 @@ export interface HazoChatProps {
   read_only?: boolean;
   /** When true, hides the references section in chat - default: false */
   hide_references?: boolean;
+  /** When true, hides the entire document viewer sidebar - default: false */
+  hide_sidebar?: boolean;
   /** When true, hides message preview/attachment preview in bubbles - default: false */
   hide_preview?: boolean;
   /** Chat display mode - controls how chat is rendered - default: 'embedded' */
