@@ -1,18 +1,14 @@
 /**
- * file_description: Forgot password page using hazo_auth component
+ * file_description: Forgot password page using hazo_auth zero-config server component
+ * Uses new hazo_auth/pages/forgot_password for simplified setup
  */
 
 // section: imports
-import { AuthPageShell } from "hazo_auth/components/layouts/shared";
-import { ForgotPasswordPageClient } from "./forgot_password_page_client";
+import { ForgotPasswordPage } from "hazo_auth/pages/forgot_password";
 
 // section: component
-export default function ForgotPasswordPage() {
-  return (
-    <AuthPageShell>
-      <ForgotPasswordPageClient />
-    </AuthPageShell>
-  );
+export default function Page() {
+  return <ForgotPasswordPage />;
 }
 
 

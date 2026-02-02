@@ -1,9 +1,9 @@
--- file_description: SQLite database initialization script for hazo_auth
--- This script creates all required tables for the hazo_auth authentication system
+-- file_description: SQLite database initialization script for hazo_auth and hazo_chat
+-- This script creates all required tables for hazo_auth v5.x and hazo_chat v3.x
 -- Compatible with SQLite (converted from PostgreSQL schema)
 
 -- ============================================
--- hazo_auth Database Setup Script (SQLite)
+-- hazo_auth v5.x + hazo_chat v3.x Database Setup Script (SQLite)
 -- ============================================
 
 -- 1. Create users table
@@ -80,16 +80,92 @@ CREATE INDEX IF NOT EXISTS idx_hazo_user_roles_user_id ON hazo_user_roles(user_i
 CREATE INDEX IF NOT EXISTS idx_hazo_user_roles_role_id ON hazo_user_roles(role_id);
 
 -- ============================================
--- hazo_chat Table (Chat Messages)
+-- hazo_auth v5.x Scope System (Multi-Tenancy)
 -- ============================================
 
--- 7. Create chat messages table
+-- 7. Create scopes table (replaces 8 separate org/scope tables in v4.x)
+CREATE TABLE IF NOT EXISTS hazo_scopes (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    level TEXT NOT NULL CHECK (level IN ('firm', 'division', 'department', 'team', 'project', 'group', 'custom')),
+    parent_scope_id TEXT REFERENCES hazo_scopes(id) ON DELETE SET NULL,
+    slug TEXT,
+    logo_url TEXT,
+    primary_color TEXT,
+    secondary_color TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    changed_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_hazo_scopes_level ON hazo_scopes(level);
+CREATE INDEX IF NOT EXISTS idx_hazo_scopes_parent ON hazo_scopes(parent_scope_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_hazo_scopes_slug ON hazo_scopes(slug) WHERE slug IS NOT NULL;
+
+-- 8. Create user-scopes junction table (membership-based)
+CREATE TABLE IF NOT EXISTS hazo_user_scopes (
+    user_id TEXT NOT NULL REFERENCES hazo_users(id) ON DELETE CASCADE,
+    scope_id TEXT NOT NULL REFERENCES hazo_scopes(id) ON DELETE CASCADE,
+    role_id TEXT NOT NULL REFERENCES hazo_roles(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    changed_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, scope_id)
+);
+CREATE INDEX IF NOT EXISTS idx_hazo_user_scopes_user ON hazo_user_scopes(user_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_user_scopes_scope ON hazo_user_scopes(scope_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_user_scopes_role ON hazo_user_scopes(role_id);
+
+-- 9. Create scope invitations table
+CREATE TABLE IF NOT EXISTS hazo_scope_invitations (
+    id TEXT PRIMARY KEY,
+    email_address TEXT NOT NULL,
+    scope_id TEXT NOT NULL REFERENCES hazo_scopes(id) ON DELETE CASCADE,
+    role_id TEXT NOT NULL REFERENCES hazo_roles(id) ON DELETE CASCADE,
+    invited_by_user_id TEXT NOT NULL REFERENCES hazo_users(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    accepted_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    changed_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_hazo_scope_invitations_email ON hazo_scope_invitations(email_address);
+CREATE INDEX IF NOT EXISTS idx_hazo_scope_invitations_scope ON hazo_scope_invitations(scope_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_scope_invitations_token ON hazo_scope_invitations(token_hash);
+
+-- ============================================
+-- hazo_chat v3.x Group-Based Chat System
+-- ============================================
+
+-- 10. Create chat groups table (v3.x - group-based chat)
+CREATE TABLE IF NOT EXISTS hazo_chat_group (
+    id TEXT PRIMARY KEY,
+    client_user_id TEXT REFERENCES hazo_users(id),
+    group_type TEXT NOT NULL DEFAULT 'support' CHECK (group_type IN ('support', 'peer', 'group')),
+    name TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    changed_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_group_client ON hazo_chat_group(client_user_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_group_type ON hazo_chat_group(group_type);
+
+-- 11. Create chat group users (membership and roles)
+CREATE TABLE IF NOT EXISTS hazo_chat_group_users (
+    chat_group_id TEXT NOT NULL REFERENCES hazo_chat_group(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES hazo_users(id) ON DELETE CASCADE,
+    role TEXT NOT NULL CHECK (role IN ('client', 'staff', 'owner', 'admin', 'member')),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    changed_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (chat_group_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_group_users_user ON hazo_chat_group_users(user_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_group_users_group ON hazo_chat_group_users(chat_group_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_group_users_role ON hazo_chat_group_users(role);
+
+-- 12. Create chat messages table (v3.x - updated for group chat)
 CREATE TABLE IF NOT EXISTS hazo_chat (
     id TEXT PRIMARY KEY,
     reference_id TEXT NOT NULL,
-    reference_type TEXT NOT NULL,
+    reference_type TEXT DEFAULT 'chat',
     sender_user_id TEXT NOT NULL REFERENCES hazo_users(id),
-    receiver_user_id TEXT NOT NULL REFERENCES hazo_users(id),
+    chat_group_id TEXT NOT NULL REFERENCES hazo_chat_group(id),
     message_text TEXT,
     reference_list TEXT,
     read_at TEXT,
@@ -99,15 +175,31 @@ CREATE TABLE IF NOT EXISTS hazo_chat (
 );
 CREATE INDEX IF NOT EXISTS idx_hazo_chat_reference_id ON hazo_chat(reference_id);
 CREATE INDEX IF NOT EXISTS idx_hazo_chat_sender ON hazo_chat(sender_user_id);
-CREATE INDEX IF NOT EXISTS idx_hazo_chat_receiver ON hazo_chat(receiver_user_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_chat_group ON hazo_chat(chat_group_id);
 CREATE INDEX IF NOT EXISTS idx_hazo_chat_created_at ON hazo_chat(created_at);
 
 -- ============================================
 -- Optional: Insert default test data
 -- ============================================
 
--- Insert a test user (password: 'password123' - bcrypt hash)
--- Note: In production, generate proper UUIDs and password hashes
+-- Insert default roles
+INSERT OR IGNORE INTO hazo_roles (id, role_name) VALUES ('role-admin-001', 'admin');
+INSERT OR IGNORE INTO hazo_roles (id, role_name) VALUES ('role-user-001', 'user');
+INSERT OR IGNORE INTO hazo_roles (id, role_name) VALUES ('role-staff-001', 'staff');
+
+-- Insert default permissions
+INSERT OR IGNORE INTO hazo_permissions (permission_name, description)
+VALUES ('admin_user_management', 'Ability to manage users');
+INSERT OR IGNORE INTO hazo_permissions (permission_name, description)
+VALUES ('admin_role_management', 'Ability to manage roles and permissions');
+INSERT OR IGNORE INTO hazo_permissions (permission_name, description)
+VALUES ('admin_scope_management', 'Ability to manage scopes and invitations');
+
+-- Assign all permissions to admin role
+INSERT OR IGNORE INTO hazo_role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM hazo_roles r, hazo_permissions p WHERE r.role_name = 'admin';
+
+-- Insert test users (password: 'password123' - bcrypt hash)
 INSERT OR IGNORE INTO hazo_users (id, email_address, password_hash, name, email_verified, is_active)
 VALUES (
     'test-user-001',
@@ -118,23 +210,47 @@ VALUES (
     1
 );
 
--- Insert default roles
-INSERT OR IGNORE INTO hazo_roles (role_name) VALUES ('admin');
-INSERT OR IGNORE INTO hazo_roles (role_name) VALUES ('user');
+INSERT OR IGNORE INTO hazo_users (id, email_address, password_hash, name, email_verified, is_active)
+VALUES (
+    'test-user-002',
+    'staff@example.com',
+    '$2b$10$EpRnTzVlqHNP0.fUbXUwSOyuiXe/QLSUG6xNekdHgTGmrpHEfIoxm',
+    'Staff User',
+    1,
+    1
+);
 
--- Insert default permissions
-INSERT OR IGNORE INTO hazo_permissions (permission_name, description) 
-VALUES ('admin_user_management', 'Ability to manage users');
-INSERT OR IGNORE INTO hazo_permissions (permission_name, description) 
-VALUES ('admin_role_management', 'Ability to manage roles and permissions');
+-- Create test scope (firm)
+INSERT OR IGNORE INTO hazo_scopes (id, name, level, slug)
+VALUES (
+    'scope-test-firm-001',
+    'Test Firm',
+    'firm',
+    'test-firm'
+);
 
--- Assign all permissions to admin role
-INSERT OR IGNORE INTO hazo_role_permissions (role_id, permission_id)
-SELECT r.id, p.id FROM hazo_roles r, hazo_permissions p WHERE r.role_name = 'admin';
+-- Assign users to scope with roles
+INSERT OR IGNORE INTO hazo_user_scopes (user_id, scope_id, role_id)
+VALUES ('test-user-001', 'scope-test-firm-001', 'role-admin-001');
 
--- Assign admin role to test user
-INSERT OR IGNORE INTO hazo_user_roles (user_id, role_id)
-SELECT 'test-user-001', id FROM hazo_roles WHERE role_name = 'admin';
+INSERT OR IGNORE INTO hazo_user_scopes (user_id, scope_id, role_id)
+VALUES ('test-user-002', 'scope-test-firm-001', 'role-staff-001');
+
+-- Create test chat group
+INSERT OR IGNORE INTO hazo_chat_group (id, client_user_id, group_type, name)
+VALUES (
+    'chat-group-001',
+    'test-user-001',
+    'support',
+    'Test Support Chat'
+);
+
+-- Add users to chat group
+INSERT OR IGNORE INTO hazo_chat_group_users (chat_group_id, user_id, role)
+VALUES ('chat-group-001', 'test-user-001', 'client');
+
+INSERT OR IGNORE INTO hazo_chat_group_users (chat_group_id, user_id, role)
+VALUES ('chat-group-001', 'test-user-002', 'staff');
 
 -- ============================================
 -- Done!
