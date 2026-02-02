@@ -40,18 +40,18 @@ CREATE INDEX IF NOT EXISTS idx_hazo_refresh_tokens_user_id ON hazo_refresh_token
 CREATE INDEX IF NOT EXISTS idx_hazo_refresh_tokens_token_type ON hazo_refresh_tokens(token_type);
 CREATE INDEX IF NOT EXISTS idx_hazo_refresh_tokens_user_type ON hazo_refresh_tokens(user_id, token_type);
 
--- 3. Create permissions table
+-- 3. Create permissions table (using TEXT for id to match v5.x)
 CREATE TABLE IF NOT EXISTS hazo_permissions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT PRIMARY KEY,
     permission_name TEXT NOT NULL UNIQUE,
     description TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     changed_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- 4. Create roles table
+-- 4. Create roles table (using TEXT for id to match v5.x)
 CREATE TABLE IF NOT EXISTS hazo_roles (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT PRIMARY KEY,
     role_name TEXT NOT NULL UNIQUE,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     changed_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -59,8 +59,8 @@ CREATE TABLE IF NOT EXISTS hazo_roles (
 
 -- 5. Create role-permissions junction table
 CREATE TABLE IF NOT EXISTS hazo_role_permissions (
-    role_id INTEGER NOT NULL REFERENCES hazo_roles(id) ON DELETE CASCADE,
-    permission_id INTEGER NOT NULL REFERENCES hazo_permissions(id) ON DELETE CASCADE,
+    role_id TEXT NOT NULL REFERENCES hazo_roles(id) ON DELETE CASCADE,
+    permission_id TEXT NOT NULL REFERENCES hazo_permissions(id) ON DELETE CASCADE,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     changed_at TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (role_id, permission_id)
@@ -71,7 +71,7 @@ CREATE INDEX IF NOT EXISTS idx_hazo_role_permissions_permission_id ON hazo_role_
 -- 6. Create user-roles junction table
 CREATE TABLE IF NOT EXISTS hazo_user_roles (
     user_id TEXT NOT NULL REFERENCES hazo_users(id) ON DELETE CASCADE,
-    role_id INTEGER NOT NULL REFERENCES hazo_roles(id) ON DELETE CASCADE,
+    role_id TEXT NOT NULL REFERENCES hazo_roles(id) ON DELETE CASCADE,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     changed_at TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (user_id, role_id)
