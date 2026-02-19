@@ -25,6 +25,7 @@ import type {
   PollingStatus,
   RealtimeMode,
   ClientLogger,
+  ErrorInfo,
 } from '../types/index.js';
 import {
   DEFAULT_REALTIME_MODE,
@@ -47,6 +48,27 @@ const PROFILE_CACHE_TTL = 1000 * 60 * 30;
 
 /** Maximum polling delay cap in milliseconds */
 const MAX_POLLING_DELAY = 30000;
+
+// ============================================================================
+// Custom Error for API responses
+// ============================================================================
+
+class ChatApiError extends Error {
+  status: number;
+  error_code: string | undefined;
+
+  constructor(status: number, message: string, error_code?: string) {
+    super(message);
+    this.name = 'ChatApiError';
+    this.status = status;
+    this.error_code = error_code;
+  }
+}
+
+/** Check if an error is a permission/auth error that should not be retried */
+function is_permission_error(err: unknown): boolean {
+  return err instanceof ChatApiError && (err.status === 403 || err.status === 401);
+}
 
 // ============================================================================
 // Hook Parameters
@@ -146,6 +168,7 @@ export function useChatMessages({
   const [has_more, set_has_more] = useState(true);
   const [error, set_error] = useState<string | null>(null);
   const [polling_status, set_polling_status] = useState<PollingStatus>('connected');
+  const [error_info, set_error_info] = useState<ErrorInfo | null>(null);
   const [current_user_id, set_current_user_id] = useState<string | null>(null);
 
   // -------------------------------------------------------------------------
@@ -380,7 +403,16 @@ export function useChatMessages({
         });
 
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
+          let error_code: string | undefined;
+          let error_message = `HTTP ${response.status}`;
+          try {
+            const error_data = await response.json();
+            error_code = error_data.error_code;
+            if (error_data.error) error_message = error_data.error;
+          } catch {
+            /* response body not parseable — use defaults */
+          }
+          throw new ChatApiError(response.status, error_message, error_code);
         }
 
         const data: MessagesApiResponse = await response.json();
@@ -450,8 +482,15 @@ export function useChatMessages({
       }
     } catch (err) {
       if (is_mounted_ref.current) {
-        set_error('Failed to load messages');
-        set_polling_status('error');
+        if (is_permission_error(err)) {
+          const api_err = err as ChatApiError;
+          set_polling_status('forbidden');
+          set_error_info({ code: api_err.error_code || 'FORBIDDEN', message: api_err.message });
+          set_error('Access denied');
+        } else {
+          set_error('Failed to load messages');
+          set_polling_status('error');
+        }
       }
     } finally {
       is_initial_loading_ref.current = false;
@@ -519,6 +558,8 @@ export function useChatMessages({
 
       is_polling_ref.current = true;
 
+      let should_continue_polling = true;
+
       try {
         // Use ref to get latest messages without causing callback re-creation
         const current_messages = messages_ref.current;
@@ -555,21 +596,32 @@ export function useChatMessages({
           set_polling_status('connected');
         }
       } catch (err) {
-        retry_count_ref.current += 1;
+        if (is_permission_error(err)) {
+          // Permission errors will never self-resolve — stop polling immediately
+          should_continue_polling = false;
+          if (is_mounted_ref.current) {
+            const api_err = err as ChatApiError;
+            set_polling_status('forbidden');
+            set_error_info({ code: api_err.error_code || 'FORBIDDEN', message: api_err.message });
+          }
+        } else {
+          // Network/transient errors — retry with backoff
+          retry_count_ref.current += 1;
 
-        if (is_mounted_ref.current) {
-          if (retry_count_ref.current >= MAX_RETRY_ATTEMPTS) {
-            // Only log error when max retries reached
-            logger.error('[useChatMessages] Polling failed after max retries', { error: err });
-            set_polling_status('error');
-          } else {
-            set_polling_status('reconnecting');
+          if (is_mounted_ref.current) {
+            if (retry_count_ref.current >= MAX_RETRY_ATTEMPTS) {
+              // Only log error when max retries reached
+              logger.error('[useChatMessages] Polling failed after max retries', { error: err });
+              set_polling_status('error');
+            } else {
+              set_polling_status('reconnecting');
+            }
           }
         }
       } finally {
         is_polling_ref.current = false;
-        // Schedule next poll with updated delay (backoff applied via get_poll_delay)
-        if (is_mounted_ref.current && config.realtime_mode === 'polling') {
+        // Schedule next poll only for retryable errors
+        if (should_continue_polling && is_mounted_ref.current && config.realtime_mode === 'polling') {
           schedule_next_poll();
         }
       }
@@ -845,6 +897,7 @@ export function useChatMessages({
     has_more,
     error,
     polling_status,
+    error_info,
     load_more,
     send_message,
     delete_message,

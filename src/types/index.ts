@@ -471,7 +471,7 @@ export type RealtimeMode = 'polling' | 'manual' | 'websocket' | 'sse';
 /**
  * Connection status for real-time updates
  */
-export type PollingStatus = 'connected' | 'reconnecting' | 'error';
+export type PollingStatus = 'connected' | 'reconnecting' | 'error' | 'forbidden';
 
 // ============================================================================
 // Transport Abstraction Types (for future WebSocket/SSE support)
@@ -578,6 +578,15 @@ export interface TransportOptions {
 // ============================================================================
 
 /**
+ * Error information exposed by useChatMessages when polling encounters
+ * a non-retryable error (e.g., 403 FORBIDDEN).
+ */
+export interface ErrorInfo {
+  code: string;
+  message: string;
+}
+
+/**
  * Return type for useChatMessages hook
  */
 export interface UseChatMessagesReturn {
@@ -587,6 +596,7 @@ export interface UseChatMessagesReturn {
   has_more: boolean;
   error: string | null;
   polling_status: PollingStatus;
+  error_info: ErrorInfo | null;
   load_more: () => void;
   send_message: (payload: CreateMessagePayload) => Promise<boolean>;
   delete_message: (message_id: string) => Promise<boolean>;

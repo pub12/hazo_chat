@@ -182,7 +182,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
       // Verify user is a member of the chat group
       const membership = await verifyGroupMembership(hazoConnect, current_user_id, chat_group_id, logger);
       if (!membership) {
-        logger.error('[hazo_chat/messages GET] User is not a member of chat group:', {
+        logger.warn('[hazo_chat/messages GET] User is not a member of chat group:', {
           current_user_id,
           chat_group_id,
         });
@@ -359,7 +359,7 @@ export function createMessagesHandler(options: MessagesHandlerOptions) {
       // Verify user is a member of the chat group
       const membership = await verifyGroupMembership(hazoConnect, sender_user_id, chat_group_id, logger);
       if (!membership) {
-        logger.error('[hazo_chat/messages POST] User is not a member of chat group:', {
+        logger.warn('[hazo_chat/messages POST] User is not a member of chat group:', {
           sender_user_id,
           chat_group_id,
         });

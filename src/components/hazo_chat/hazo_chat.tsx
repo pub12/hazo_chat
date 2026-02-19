@@ -148,6 +148,7 @@ function HazoChatInner({
     delete_message,
     mark_as_read,
     polling_status,
+    error_info,
     refresh: refresh_messages
   } = useChatMessages({
     chat_group_id,
@@ -553,10 +554,16 @@ function HazoChatInner({
             'px-3 py-1.5 rounded-full text-xs font-medium z-10',
             polling_status === 'reconnecting'
               ? 'bg-yellow-100 text-yellow-800'
-              : 'bg-red-100 text-red-800'
+              : polling_status === 'forbidden'
+                ? 'bg-orange-100 text-orange-800'
+                : 'bg-red-100 text-red-800'
           )}
         >
-          {polling_status === 'reconnecting' ? 'Reconnecting...' : 'Connection error'}
+          {polling_status === 'reconnecting'
+            ? 'Reconnecting...'
+            : polling_status === 'forbidden'
+              ? 'Access denied'
+              : 'Connection error'}
         </div>
       )}
     </div>
