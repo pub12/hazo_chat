@@ -9,9 +9,7 @@ export const dynamic = "force-dynamic";
 
 // section: imports
 import { NextRequest } from "next/server";
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore - webpack alias resolves this path
-import { get_hazo_connect_instance } from "hazo_auth/lib/hazo_connect_instance.server";
+import { get_hazo_connect_instance } from "hazo_auth/server-lib";
 import { createMarkAsReadHandler } from "hazo_chat/api";
 import { createLogger, type Logger } from "hazo_logs";
 

@@ -3,6 +3,8 @@
  * Uses new hazo_auth/pages/login for simplified setup
  */
 
+export const dynamic = "force-dynamic";
+
 // section: imports
 import { LoginPage } from "hazo_auth/pages/login";
 

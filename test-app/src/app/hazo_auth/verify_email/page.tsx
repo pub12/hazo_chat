@@ -3,6 +3,8 @@
  * Uses new hazo_auth/pages/verify_email for simplified setup
  */
 
+export const dynamic = "force-dynamic";
+
 // section: imports
 import { VerifyEmailPage } from "hazo_auth/pages/verify_email";
 

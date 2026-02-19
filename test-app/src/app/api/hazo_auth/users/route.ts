@@ -1,6 +1,6 @@
 /**
  * file_description: API route to fetch all users from hazo_users table
- * Used for testing purposes - lists all users except current logged-in user
+ * Custom route - no standardized re-export available (test UI user listing)
  */
 
 // section: route_config
@@ -8,9 +8,7 @@ export const dynamic = "force-dynamic";
 
 // section: imports
 import { NextRequest, NextResponse } from "next/server";
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore - webpack alias resolves this path
-import { get_hazo_connect_instance } from "hazo_auth/lib/hazo_connect_instance.server";
+import { get_hazo_connect_instance } from "hazo_auth/server-lib";
 import { createCrudService } from "hazo_connect/server";
 import { cookies } from "next/headers";
 
@@ -60,4 +58,3 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-

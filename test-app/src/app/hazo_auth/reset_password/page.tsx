@@ -3,6 +3,8 @@
  * Uses new hazo_auth/pages/reset_password for simplified setup
  */
 
+export const dynamic = "force-dynamic";
+
 // section: imports
 import { ResetPasswordPage } from "hazo_auth/pages/reset_password";
 

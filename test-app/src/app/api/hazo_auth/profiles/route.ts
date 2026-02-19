@@ -1,6 +1,6 @@
 /**
  * file_description: API route to fetch user profiles by user IDs
- * Uses hazo_connect to query hazo_users table for profile data
+ * Custom route - no standardized re-export available (batch profile lookup for hazo_chat)
  */
 
 // section: route_config
@@ -8,9 +8,7 @@ export const dynamic = "force-dynamic";
 
 // section: imports
 import { NextRequest, NextResponse } from "next/server";
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore - webpack alias resolves this path
-import { get_hazo_connect_instance } from "hazo_auth/lib/hazo_connect_instance.server";
+import { get_hazo_connect_instance } from "hazo_auth/server-lib";
 import { createCrudService } from "hazo_connect/server";
 
 // section: types
@@ -54,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     // Fetch profiles for each user ID
     const profiles: UserProfile[] = [];
-    
+
     for (const user_id of user_ids) {
       const user = await usersService.findById(user_id);
       if (user) {
@@ -76,17 +74,10 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const error_message = error instanceof Error ? error.message : "Unknown error";
     console.error("[hazo_auth/profiles] Error:", error_message, error);
-    
+
     return NextResponse.json(
       { success: false, error: "Failed to fetch profiles", profiles: [] },
       { status: 500 }
     );
   }
 }
-
-
-
-
-
-
-

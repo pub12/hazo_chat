@@ -3,6 +3,8 @@
  * Uses new hazo_auth/pages/forgot_password for simplified setup
  */
 
+export const dynamic = "force-dynamic";
+
 // section: imports
 import { ForgotPasswordPage } from "hazo_auth/pages/forgot_password";
 

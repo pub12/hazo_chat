@@ -22,6 +22,11 @@ CREATE TABLE IF NOT EXISTS hazo_users (
     profile_source TEXT CHECK (profile_source IN ('gravatar', 'custom', 'predefined')),
     mfa_secret TEXT,
     url_on_logon TEXT,
+    google_id TEXT UNIQUE,
+    auth_providers TEXT DEFAULT 'email',
+    user_type TEXT,
+    app_user_data TEXT,
+    status TEXT CHECK (status IN ('PENDING', 'ACTIVE', 'BLOCKED')),
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     changed_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -83,12 +88,13 @@ CREATE INDEX IF NOT EXISTS idx_hazo_user_roles_role_id ON hazo_user_roles(role_i
 -- hazo_auth v5.x Scope System (Multi-Tenancy)
 -- ============================================
 
--- 7. Create scopes table (replaces 8 separate org/scope tables in v4.x)
+-- 7. Create scopes table (v5.x canonical: parent_id instead of parent_scope_id)
 CREATE TABLE IF NOT EXISTS hazo_scopes (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    level TEXT NOT NULL CHECK (level IN ('firm', 'division', 'department', 'team', 'project', 'group', 'custom')),
-    parent_scope_id TEXT REFERENCES hazo_scopes(id) ON DELETE SET NULL,
+    level TEXT NOT NULL CHECK (level IN ('system', 'default', 'firm', 'division', 'department', 'team', 'project', 'group', 'custom')),
+    parent_id TEXT REFERENCES hazo_scopes(id) ON DELETE SET NULL,
+    tagline TEXT,
     slug TEXT,
     logo_url TEXT,
     primary_color TEXT,
@@ -97,14 +103,16 @@ CREATE TABLE IF NOT EXISTS hazo_scopes (
     changed_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_hazo_scopes_level ON hazo_scopes(level);
-CREATE INDEX IF NOT EXISTS idx_hazo_scopes_parent ON hazo_scopes(parent_scope_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_scopes_parent ON hazo_scopes(parent_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_hazo_scopes_slug ON hazo_scopes(slug) WHERE slug IS NOT NULL;
 
--- 8. Create user-scopes junction table (membership-based)
+-- 8. Create user-scopes junction table (v5.x: added root_scope_id and status)
 CREATE TABLE IF NOT EXISTS hazo_user_scopes (
     user_id TEXT NOT NULL REFERENCES hazo_users(id) ON DELETE CASCADE,
     scope_id TEXT NOT NULL REFERENCES hazo_scopes(id) ON DELETE CASCADE,
     role_id TEXT NOT NULL REFERENCES hazo_roles(id) ON DELETE CASCADE,
+    root_scope_id TEXT NOT NULL REFERENCES hazo_scopes(id),
+    status TEXT DEFAULT 'ACTIVE' CHECK (status IN ('INVITED', 'ACTIVE', 'SUSPENDED', 'DEPARTED')),
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     changed_at TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (user_id, scope_id)
@@ -112,23 +120,24 @@ CREATE TABLE IF NOT EXISTS hazo_user_scopes (
 CREATE INDEX IF NOT EXISTS idx_hazo_user_scopes_user ON hazo_user_scopes(user_id);
 CREATE INDEX IF NOT EXISTS idx_hazo_user_scopes_scope ON hazo_user_scopes(scope_id);
 CREATE INDEX IF NOT EXISTS idx_hazo_user_scopes_role ON hazo_user_scopes(role_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_user_scopes_root ON hazo_user_scopes(root_scope_id);
 
--- 9. Create scope invitations table
-CREATE TABLE IF NOT EXISTS hazo_scope_invitations (
+-- 9. Create invitations table (v5.x: renamed from hazo_scope_invitations)
+CREATE TABLE IF NOT EXISTS hazo_invitations (
     id TEXT PRIMARY KEY,
     email_address TEXT NOT NULL,
     scope_id TEXT NOT NULL REFERENCES hazo_scopes(id) ON DELETE CASCADE,
     role_id TEXT NOT NULL REFERENCES hazo_roles(id) ON DELETE CASCADE,
-    invited_by_user_id TEXT NOT NULL REFERENCES hazo_users(id) ON DELETE CASCADE,
-    token_hash TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'ACCEPTED', 'EXPIRED', 'REVOKED')),
+    invited_by TEXT NOT NULL REFERENCES hazo_users(id) ON DELETE CASCADE,
     expires_at TEXT NOT NULL,
     accepted_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     changed_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
-CREATE INDEX IF NOT EXISTS idx_hazo_scope_invitations_email ON hazo_scope_invitations(email_address);
-CREATE INDEX IF NOT EXISTS idx_hazo_scope_invitations_scope ON hazo_scope_invitations(scope_id);
-CREATE INDEX IF NOT EXISTS idx_hazo_scope_invitations_token ON hazo_scope_invitations(token_hash);
+CREATE INDEX IF NOT EXISTS idx_hazo_invitations_email ON hazo_invitations(email_address);
+CREATE INDEX IF NOT EXISTS idx_hazo_invitations_scope ON hazo_invitations(scope_id);
+CREATE INDEX IF NOT EXISTS idx_hazo_invitations_status ON hazo_invitations(status);
 
 -- ============================================
 -- hazo_chat v3.x Group-Based Chat System
@@ -179,13 +188,14 @@ CREATE INDEX IF NOT EXISTS idx_hazo_chat_group ON hazo_chat(chat_group_id);
 CREATE INDEX IF NOT EXISTS idx_hazo_chat_created_at ON hazo_chat(created_at);
 
 -- ============================================
--- Optional: Insert default test data
+-- Insert default/test data
 -- ============================================
 
 -- Insert default roles
 INSERT OR IGNORE INTO hazo_roles (id, role_name) VALUES ('role-admin-001', 'admin');
 INSERT OR IGNORE INTO hazo_roles (id, role_name) VALUES ('role-user-001', 'user');
 INSERT OR IGNORE INTO hazo_roles (id, role_name) VALUES ('role-staff-001', 'staff');
+INSERT OR IGNORE INTO hazo_roles (id, role_name) VALUES ('role-firm-admin-001', 'firm_admin');
 
 -- Insert default permissions
 INSERT OR IGNORE INTO hazo_permissions (permission_name, description)
@@ -199,25 +209,34 @@ VALUES ('admin_scope_management', 'Ability to manage scopes and invitations');
 INSERT OR IGNORE INTO hazo_role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM hazo_roles r, hazo_permissions p WHERE r.role_name = 'admin';
 
+-- Insert system scopes (v5.x required)
+INSERT OR IGNORE INTO hazo_scopes (id, name, level)
+VALUES ('00000000-0000-0000-0000-000000000000', 'Super Admin', 'system');
+
+INSERT OR IGNORE INTO hazo_scopes (id, name, level)
+VALUES ('00000000-0000-0000-0000-000000000001', 'System/Default', 'default');
+
 -- Insert test users (password: 'password123' - bcrypt hash)
-INSERT OR IGNORE INTO hazo_users (id, email_address, password_hash, name, email_verified, is_active)
+INSERT OR IGNORE INTO hazo_users (id, email_address, password_hash, name, email_verified, is_active, status)
 VALUES (
     'test-user-001',
     'test@example.com',
     '$2b$10$EpRnTzVlqHNP0.fUbXUwSOyuiXe/QLSUG6xNekdHgTGmrpHEfIoxm',
     'Test User',
     1,
-    1
+    1,
+    'ACTIVE'
 );
 
-INSERT OR IGNORE INTO hazo_users (id, email_address, password_hash, name, email_verified, is_active)
+INSERT OR IGNORE INTO hazo_users (id, email_address, password_hash, name, email_verified, is_active, status)
 VALUES (
     'test-user-002',
     'staff@example.com',
     '$2b$10$EpRnTzVlqHNP0.fUbXUwSOyuiXe/QLSUG6xNekdHgTGmrpHEfIoxm',
     'Staff User',
     1,
-    1
+    1,
+    'ACTIVE'
 );
 
 -- Create test scope (firm)
@@ -229,12 +248,12 @@ VALUES (
     'test-firm'
 );
 
--- Assign users to scope with roles
-INSERT OR IGNORE INTO hazo_user_scopes (user_id, scope_id, role_id)
-VALUES ('test-user-001', 'scope-test-firm-001', 'role-admin-001');
+-- Assign users to scope with roles (v5.x: includes root_scope_id)
+INSERT OR IGNORE INTO hazo_user_scopes (user_id, scope_id, role_id, root_scope_id, status)
+VALUES ('test-user-001', 'scope-test-firm-001', 'role-admin-001', 'scope-test-firm-001', 'ACTIVE');
 
-INSERT OR IGNORE INTO hazo_user_scopes (user_id, scope_id, role_id)
-VALUES ('test-user-002', 'scope-test-firm-001', 'role-staff-001');
+INSERT OR IGNORE INTO hazo_user_scopes (user_id, scope_id, role_id, root_scope_id, status)
+VALUES ('test-user-002', 'scope-test-firm-001', 'role-staff-001', 'scope-test-firm-001', 'ACTIVE');
 
 -- Create test chat group
 INSERT OR IGNORE INTO hazo_chat_group (id, client_user_id, group_type, name)
@@ -255,4 +274,3 @@ VALUES ('chat-group-001', 'test-user-002', 'staff');
 -- ============================================
 -- Done!
 -- ============================================
-

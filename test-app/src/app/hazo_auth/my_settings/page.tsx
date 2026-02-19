@@ -3,6 +3,8 @@
  * Uses new hazo_auth/pages/my_settings for simplified setup
  */
 
+export const dynamic = "force-dynamic";
+
 // section: imports
 import { MySettingsPage } from "hazo_auth/pages/my_settings";
 

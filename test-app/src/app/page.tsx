@@ -51,15 +51,7 @@ import {
   IoDownloadOutline
 } from 'react-icons/io5';
 import { LuTextCursorInput } from 'react-icons/lu';
-// Import ProfilePicMenu and use_auth_status from hazo_auth
-// Importing directly to avoid pulling in server-side code from barrel exports
-// Webpack aliases resolve these paths
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore - webpack alias resolves this path
-import { ProfilePicMenu } from 'hazo_auth/components/layouts/shared/components/profile_pic_menu';
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore - webpack alias resolves this path
-import { use_auth_status } from 'hazo_auth/components/layouts/shared/hooks/use_auth_status';
+import { ProfilePicMenu, use_auth_status } from 'hazo_auth/client';
 import { Input } from '@/components/ui/input';
 import {
   HoverCard,
